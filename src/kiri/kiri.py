@@ -360,10 +360,11 @@ class Kiri:
                     if not content:
                         continue
                     u = e.get("user") or self.DEFAULT_USER
-                    # 跳过[主动]标记的历史
+                    # 跳过[主动]/[联想]标记的历史 ([联想]=内心独白, 不是对话)
                     if role == "user":
                         per_user.setdefault(u, []).append({"role": "user", "text": content[:300]})
-                    elif role == "assistant" and not content.startswith("[主动]"):
+                    elif role == "assistant" and not content.startswith("[主动]") \
+                            and not content.startswith("[联想]"):
                         per_user.setdefault(u, []).append({"role": "kiri", "text": content[:300]})
             # 取最近14条(7轮) 每人
             for u, rows in per_user.items():
@@ -647,6 +648,15 @@ class Kiri:
                 #   工作记忆: 不用 30 条原文(旧对话会绑架她), 只留最近几轮的精简摘要
                 dlg = self.get_dialog(user)
                 agent_input = self._dialog_summary(dlg, user_text, who)
+                # ★ 目标召回注入 (2026-08-29 雾弥: 对话时要记得自己的目标, 别误解成别的)
+                #   对话/自主都给她的目标, 她才知道"我要做什么", 不凭空猜
+                try:
+                    import goals
+                    _gl = goals.list_goals()
+                    if "你的目标:" in str(_gl):
+                        agent_input += "\n\n【你的目标】(你心里惦记要做的事, 别忘/别误解)\n" + str(_gl)
+                except Exception:
+                    pass
                 # ★ 2026-08-21 雾弥指示: 取消10秒时间预算 (探索不该限时, 写长文几十分钟都可能)
                 #   agent 完全自主: 想探索就探索(防死循环靠打转检测), 想回复就回复
                 #   need_deep 不再由"调了工具"触发, 而由 agent 的回复内容判定:

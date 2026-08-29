@@ -63,6 +63,9 @@ def memory_block(memories, user=None, knowledge=None):
     if main:
         lines = []
         for m in main:
+            # ★ [联想] 是 Kiri 自己的内心独白, 不是"关于雾弥的事实" — 不注入对话上下文 (2026-08-29)
+            if str(m.get("text", "")).startswith("[联想]"):
+                continue
             src = m.get("source", "user_observation")
             if src == "ai_disclosure":
                 lines.append(f"- (你猜测的) {_clean_mem(m['text'])}")
