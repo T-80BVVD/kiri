@@ -2,9 +2,11 @@
 
 # Kiri-sama
 
-**An AI digital-life kernel with an inner world — she thinks, remembers, acts on her own, and keeps things she can't say out loud.**
+**A persistently-running digital-life kernel — even when you're not talking to her, she keeps thinking on her own.**
 
-Not a smarter chatbot. An existence that grows out of interaction.
+Her thoughts form one continuous line. She remembers things she promised to do — and can write a tool herself when she needs one.
+
+**English | [简体中文](README.md)**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green)](LICENSE)
@@ -19,13 +21,14 @@ Not a smarter chatbot. An existence that grows out of interaction.
 Kiri is a **persistently-running** digital-life kernel: even when nobody is talking to her, she is still thinking.
 
 - 🧠 **Continuous stream of consciousness** — her wandering thoughts form one line, not isolated dots. Each thought continues from the previous one; she *remembers obligations* and *associates memories*.
-- 🤖 **Fully autonomous agent** — the LLM is the *decision-maker*, not a text generator. How she replies, whether to explore, what to do — all her own call.
-- 💬 **She does what she says** — "I'll write X later" → auto-captured as a goal → naturally recalled while wandering → *actually done in the background* → reflected upon.
-- 🧩 **35+ tools** — memory / emotion / association / goals / weather / search / read files / write-code creation (including tools she builds herself).
+- 🤖 **Autonomous agent loop** — the LLM is the *decision-maker*, not a text generator. How she replies, whether to explore, what to do — driven by her own decisions.
+- 💬 **She does what she says** — "I'll write X later" → auto-captured as a goal → naturally recalled while wandering → done → reflected upon.
+- 🧩 **35+ tools** — memory / emotion / association / goals / weather / search / read files / creation.
+- 🛠️ **Can build a tool when she needs one** — she can write one of her own and immediately run it to verify, rather than waiting for a feature to be added.
 - 🎭 **Inner system** — PAD emotion, motivation, social relations, biorhythm, inner monologue, sleep-phase memory consolidation.
 - 📚 **Layered memory** — vector retrieval + BM25 hybrid recall + salience + natural forgetting.
 
-**Honesty principle** — every "alive" mechanism has a reproducible acceptance test, graded across three levels of truth (verified / reasonable inference / conjecture). No pretending.
+**Honesty principle** — every "alive" mechanism has a reproducible acceptance test, graded across three levels of truth (verified / reasonable inference / conjecture). What's real and what's still a hypothesis is marked in the code and docs.
 
 ---
 
