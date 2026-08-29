@@ -1,0 +1,20 @@
+# Kiri requirements — 真实模式 (python app.py) 所需
+# 说明: 零依赖 Demo (python app.py --demo) 只需要 Python 标准库, 无需安装任何包。
+
+# ---- 核心 (LLM 引擎 + 记忆) ----
+chromadb>=0.4
+jieba>=0.42
+numpy
+psutil
+
+# ---- MCP 客户端 (外部工具服务) ----
+mcp
+
+# ---- QQ 官方桥 ----
+websockets
+
+# ---- 本地推理 (可选: config.ENGINE="local" 时才需要) ----
+# torch
+# transformers
+# peft
+# unsloth

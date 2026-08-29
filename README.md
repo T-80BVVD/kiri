@@ -31,10 +31,9 @@ Kiri 是一个**常驻运转**的数字生命内核：不说话的时候她也�
 
 ## 5 分钟看到它活着（零依赖 Demo）
 
-不需要 API key、不需要 QQ、不需要数据库：
+不需要 API key、不需要 QQ、不需要数据库，**纯 Python 标准库**（无需 pip install）：
 
 ```bash
-pip install -r requirements.txt
 python app.py --demo
 ```
 
@@ -51,13 +50,16 @@ python app.py --demo
 ## 真实模式
 
 ```bash
-# 1. 配置 DeepSeek key（环境变量）
+# 1. 安装依赖（真实模式需要；demo 模式不需要）
+pip install -r requirements.txt
+
+# 2. 配置 DeepSeek key（环境变量）
 set DEEPSEEK_API_KEY=sk-xxx
 
-# 2. （可选）配置 QQ 官方机器人，让 Kiri 进群
+# 3. （可选）配置 QQ 官方机器人，让 Kiri 进群
 #    复制 config/qq_config.example.json → qq_config.json，填入 AppId / ClientSecret
 
-# 3. 启动
+# 4. 启动
 python app.py
 ```
 
