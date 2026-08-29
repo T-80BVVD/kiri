@@ -17,7 +17,7 @@ try:
 except Exception:
     pass
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import prompt as prompt_mod
 import state as state_mod
 import kiri as kiri_mod

@@ -1,0 +1,77 @@
+# 情感人格模型配置文件
+
+# 权重系数
+weights:
+  # 深层情感更新权重
+  k_b: 0.1    # 无聊度更新系数
+  k_m: 0.05   # 心境更新系数
+  k_s: 0.2    # 事件深刻度影响系数
+  k_t: 0.15   # 话题态度更新系数
+  k_a: 0.08   # 情感积累更新系数
+  
+  # 表层情绪生成权重
+  w1: 0.4     # 当前心境权重
+  w2: 0.2     # 话题态度权重
+  w3: 0.25    # 深层亲和力权重
+  w4: 0.15    # 当前无聊度权重
+  w5: 0.3     # 外向性权重
+  w6: 0.4     # 事件深刻度权重
+  w7: 0.3     # 情感积累权重
+  w8: 0.35    # 外向性权重（支配度）
+  w9: 0.3     # 宜人性权重（支配度）
+  w10: 0.35   # 安逸度权重（支配度）
+
+# 衰减系数
+decay:
+  decay_b: 0.05  # 无聊度衰减
+  decay_a: 0.03  # 情感积累衰减
+
+# 阈值
+thresholds:
+  dissonance_threshold: 0.5  # 别扭度阈值
+  event_salience_high: 0.8   # 高深刻度事件阈值
+  boredom_threshold: 0.7     # 无聊度阈值
+
+# 学习速率
+learning_rate:
+  base: 1.0
+  openness_factor: 0.5
+  comfort_seeking_factor: -0.5
+  event_salience_factor: 0.5
+
+# 人格演化参数
+trait_evolution:
+  event_salience_factor: 0.01
+  comfort_seeking_adjustment: -0.001
+
+# 初始值
+initial_values:
+  # 特质层默认值（范围 [-1.0, 1.0]）
+  extraversion: 0.0
+  openness: 0.0
+  conscientiousness: 0.0
+  agreeableness: 0.0
+  neuroticism: 0.0
+  comfort_seeking: 0.0
+  
+  # 深层情感层默认值
+  current_mood: 0.0          # [-1, 1]
+  topic_attitude: 0.0        # [-1, 1]
+  deep_affinity: 0.0         # [-1, 1]
+  sentiment_accumulation: 0.0  # [0, 1]
+  current_boredom: 0.0        # [0, 1]
+  
+  # 表层情绪层默认值（范围 [-1.0, 1.0]）
+  pleasure: 0.0
+  arousal: 0.0
+  dominance: 0.0
+  
+  # 元认知层默认值（范围 [0.0, 1.0]）
+  dissonance: 0.0
+  self_congruence: 1.0
+  emotional_labor: 0.0
+  
+  # 环境感知层默认值
+  event_salience: 0.0        # [0, 1]
+  task_type: "social_chat"   # 任务类型
+  task_repetition: 0.0        # [0, 1]

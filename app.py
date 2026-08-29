@@ -20,13 +20,18 @@ import json
 import time
 import threading
 
+# 核心模块统一放在 src/kiri/ 下 (轻量分层: 模块内部平铺 import 不变, 靠 sys.path 指向 src/kiri)
+BASE = os.path.dirname(os.path.abspath(__file__))
+KIRI_DIR = os.path.join(BASE, "src", "kiri")
+sys.path.insert(0, KIRI_DIR)
+# 为 src/kiri 也是包, 加 package 根
+sys.path.insert(0, os.path.join(BASE, "src"))
+
 # ★ 零依赖演示模式: 不加载 kiri/配置/凭据, 直接转发 demo.py (2026-08-29)
 if "--demo" in sys.argv:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import demo
     sys.exit(demo.main())
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 import kiri as kiri_mod
 
@@ -34,7 +39,9 @@ import webview
 import pystray
 from PIL import Image, ImageDraw
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+# 数据/界面统一定位到 src/kiri (与核心模块同处, 运行数据集中于此)
+_BASE_ROOT = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.join(_BASE_ROOT, "src", "kiri")
 HISTORY_FILE = os.path.join(BASE, "history.jsonl")
 PROACTIVES_FILE = os.path.join(BASE, "proactives.jsonl")
 MIND_FILE = os.path.join(BASE, "kiri_mind.jsonl")

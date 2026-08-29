@@ -7,7 +7,7 @@ import os
 import json
 import types
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import reverie as reverie_mod
 
 # ---- mock 记录器 ----

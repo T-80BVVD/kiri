@@ -14,7 +14,7 @@ try:
 except Exception:
     pass
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import wander_sources as ws
 
 # ---- mock: 内容源返回 (按工具名) ----

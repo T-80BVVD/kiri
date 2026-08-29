@@ -8,7 +8,8 @@ import json
 import time
 import random
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "reuse", "emotion"))
+# emotion_core 与本模块同放在 src/kiri/emotion/ 下 (公开仓库内置, 不再依赖外部 src/reuse)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "emotion"))
 from emotion_core import EmotionStateMachine, MotivationSystem, SocialIntelligenceSystem, BiorhythmSystem
 
 import config
@@ -20,7 +21,7 @@ class State:
     DEFAULT_USER = "雾弥"   # 主动发言/活动状态机的默认对象 (与 kiri.Kiri 对齐)
 
     def __init__(self):
-        cfg_path = os.path.join(os.path.dirname(__file__), "..", "src", "reuse", "emotion", "config.yaml")
+        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "emotion", "config.yaml")
         self.emotion = EmotionStateMachine(cfg_path)
         self.motivation = MotivationSystem()   # ★ 动机系统: 让Kiri有"此刻想做什么"的内驱力
         self.motivation.last_motivation_update = 0.0  # ★ 修复: 允许首次立即更新(原emotion_core初始化为now导致首次被跳过)

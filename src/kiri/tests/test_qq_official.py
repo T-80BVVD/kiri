@@ -3,7 +3,7 @@
 验证: 连接/鉴权/心跳/群@事件→respond→发送/去重/被动模式"""
 import sys, io, json, os, threading, time
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.path.insert(0, r"~/kiri\kiri")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import asyncio
 import websockets

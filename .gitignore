@@ -1,12 +1,13 @@
 # ===== Kiri 公开仓库 .gitignore（防泄露双保险）=====
-# 即使文件被误拷入目录，也不会被提交。
+# 模块统一在 src/kiri/ 下，运行时数据/凭据/日志都在那里生成，必须忽略。
+# 即使被误拷入仓，也会被这里拦截。
 
 # ---- 作者工具（不进公开仓库）----
 assemble_public.ps1
 
 # ---- 真实凭据 ----
-kiri/qq_config.json
-kiri/config/qq_config.json
+**/qq_config.json
+**/config/qq_config.json
 config/qq_config.json
 *.secret
 token.json
@@ -15,58 +16,58 @@ token.json
 credentials.yaml
 
 # ---- 运行时状态 / 群信息 / 日志 ----
-kiri/*.jsonl
-kiri/*.log
-kiri/state_save.json
-kiri/tool_seen.json
-kiri/topic_signals.json
-kiri/wander_dedup.json
-kiri/goals.jsonl
-kiri/qq_groups.json
-kiri/qq_official_groups.json
-kiri/qq_guardian_status.json
-kiri/kick_state.json
-kiri/emotion_events.jsonl
-kiri/data_log.jsonl
-kiri/app_run.log
+src/kiri/*.jsonl
+src/kiri/*.log
+src/kiri/state_save.json
+src/kiri/tool_seen.json
+src/kiri/topic_signals.json
+src/kiri/wander_dedup.json
+src/kiri/goals.jsonl
+src/kiri/qq_groups.json
+src/kiri/qq_official_groups.json
+src/kiri/qq_guardian_status.json
+src/kiri/kick_state.json
+src/kiri/emotion_events.jsonl
+src/kiri/data_log.jsonl
+src/kiri/app_run.log
+src/kiri/api_bridge.log
 
 # ---- 真实对话 / 内心流 / 记忆 ----
-kiri/kiri_mind.jsonl
-kiri/history.jsonl
-kiri/events.jsonl
-kiri/proactives.jsonl
-kiri/her_essay*.txt
-kiri/her_essay*.md
-kiri/incident_2048_*
-kiri/mem_db/
-kiri/memory_db/
-kiri/*memory.json
+src/kiri/kiri_mind.jsonl
+src/kiri/history.jsonl
+src/kiri/events.jsonl
+src/kiri/proactives.jsonl
+src/kiri/her_essay*.txt
+src/kiri/her_essay*.md
+src/kiri/incident_2048_*
+src/kiri/mem_db/
+src/kiri/memory_db/
+src/kiri/*memory.json
 
 # ---- 蒸馏数据 / 训练产物 ----
-kiri/distill/data/
-kiri/distill/_audit/
-kiri/distill/*.log
-kiri/distill/kick_state.json
-kiri/*.pt
-kiri/bc_data.npy
-kiri/replays/
-kiri/osu_train*.log
-kiri/dataset/
-kiri/summaries/
-kiri/sim/
+src/kiri/distill/data/
+src/kiri/distill/_audit/
+src/kiri/distill/*.log
+src/kiri/*.pt
+src/kiri/bc_data.npy
+src/kiri/replays/
+src/kiri/osu_train*.log
+src/kiri/dataset/
+src/kiri/summaries/
+src/kiri/sim/
 
 # ---- 编译缓存 / 第三方产物 ----
 __pycache__/
 *.pyc
-kiri/unsloth_compiled_cache/
-kiri/distill/unsloth_compiled_cache/
-kiri/_neko_src/
-kiri/_neko_mc_src/
-kiri/_rlosu_src/
+src/kiri/unsloth_compiled_cache/
+src/kiri/distill/unsloth_compiled_cache/
+src/kiri/_neko_src/
+src/kiri/_neko_mc_src/
+src/kiri/_rlosu_src/
 .tmp_retest/
 
 # ---- 模拟 / 预测 ----
-kiri/pred_mem_*.jsonl
+src/kiri/pred_mem_*.jsonl
 
 # ---- IDE / OS ----
 .idea/

@@ -11,7 +11,7 @@ respond事件日志/data_log 全部变成死代码; 工具重生成空时返回�
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import kiri as kiri_mod
 import data_log as data_log_mod
 import tool_registry

@@ -88,19 +88,27 @@ QQ 官方桥是**被动模式**：她只能在你 @ 时开口，其他时间安�
 ## 目录结构
 
 ```
-kiri/
-├── app.py                  # 入口 (--demo = 零依赖演示)
-├── demo.py                 # 零依赖演示服务
-├── agent.py                # Agent 循环 (决策/工具/防打转/流式)
-├── reverie.py              # 连续意识流 (走神/念头/行动涌现)
-├── memory.py               # 分层记忆 (向量检索 + 混合召回)
-├── goals.py                # 目标系统 (自主创建/承诺捕捉)
-├── state.py                # 状态系统 (情绪/动机/社交/节律)
-├── prompt.py               # 人格系统 (AI 自我认知 + 猫娘 + 记忆红线)
-├── kiri_agent_tools.py     # 内部工具 (记忆/情绪/状态/联想)
-├── kiri_mcp_server.py      # MCP 工具服务 (外部能力)
-├── qq_bridge_official.py   # QQ 官方 API 桥
-└── ui/                     # 监控面板 / 回溯界面
+kiri-public/
+├── app.py                     # 入口 (python app.py = 真实模式; --demo = 零依赖演示)
+├── src/kiri/                  # 核心源码 (数字生命内核)
+│   ├── agent.py               # Agent 循环 (决策/工具/防打转/流式)
+│   ├── kiri.py                # 主类 (多用户 + 人格分流)
+│   ├── reverie.py             # 连续意识流 (走神/念头/行动涌现)
+│   ├── memory.py              # 分层记忆 (向量检索 + BM25/RRF 混合召回)
+│   ├── state.py               # 状态系统 (情绪/动机/社交/节律)
+│   ├── goals.py               # 目标系统 (自主创建/承诺捕捉)
+│   ├── prompt.py              # 人格系统 (AI 自我认知 + 猫娘 + 记忆红线)
+│   ├── engine.py              # LLM 引擎封装 (DeepSeek API + 本地)
+│   ├── kiri_agent_tools.py    # 内部工具 (记忆/情绪/状态/联想)
+│   ├── kiri_mcp_server.py     # MCP 工具服务 (外部能力)
+│   ├── qq_bridge_official.py  # QQ 官方 API 桥
+│   ├── monitor_server.py      # 后台监控面板
+│   ├── demo.py                # 零依赖演示服务
+│   ├── emotion/               # 情绪核心 (PAD 四维状态机 + 动机/社交/节律)
+│   ├── tests/                 # 单元测试 (agent 循环 / 记忆 / QQ 桥)
+│   ├── ui/                    # 监控面板 / 回溯界面 (HTML/JS)
+│   └── my_creations/          # Kiri 自写工具的示例区
+└── ARCHITECTURE.md            # 完整架构文档
 ```
 
 ---

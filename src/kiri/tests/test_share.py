@@ -7,7 +7,7 @@ import sys
 import os
 import queue as std_queue
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import qq_bridge as qb
 
 sent = []
