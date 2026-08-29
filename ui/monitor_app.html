@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Kiri 控制台</title>
+<style>
+:root{--bg:#f3f6fb;--card:#ffffff;--line:#dfe6ef;--txt:#1e2a38;--dim:#7a8798;
+--g:#12b886;--y:#e8a33d;--r:#e5484d;--b:#2f6fed;--p:#7c5cff;--cy:#0e92b0;--warn:#e8a33d}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;max-width:1200px;margin:0 auto;padding:16px}
+h1{font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px}
+h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--g);box-shadow:0 0 8px var(--g)}
+.sub{color:var(--dim);font-size:12px;margin-top:2px}
+nav{display:flex;gap:6px;margin:16px 0;border-bottom:1px solid var(--line);padding-bottom:8px}
+nav button{background:transparent;border:none;color:var(--dim);font-size:14px;padding:6px 16px;border-radius:6px;cursor:pointer}
+nav button.on{background:var(--card);color:var(--txt);border:1px solid var(--line)}
+nav button:hover{color:var(--txt)}
+.health{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-width:118px}
+.pill .k{color:var(--dim);font-size:11px}
+.pill .v{font-size:16px;font-weight:600;margin-top:2px}
+.pill .v.ok{color:var(--g)}.pill .v.warn{color:var(--warn)}.pill .v.bad{color:var(--r)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card h3{font-size:13px;color:var(--dim);border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.kv b{color:var(--dim);font-weight:500}
+.kv span{color:var(--txt)}
+.tl{position:relative;margin-left:16px;padding-left:20px;border-left:2px solid var(--line)}
+.turn{margin-bottom:14px;position:relative}
+.turn::before{content:"";position:absolute;left:-27px;top:4px;width:11px;height:11px;border-radius:50%;background:var(--g)}
+.turn .hdr{display:flex;align-items:baseline;gap:10px}
+.turn .hdr .t{color:var(--dim);font-size:11px;font-family:monospace}
+.turn .hdr .tag{font-size:11px;padding:1px 8px;border-radius:10px;background:var(--b);color:#fff}
+.turn .body{margin-top:6px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px}
+.step{display:inline-block;font-family:monospace;font-size:11px;padding:1px 8px;border-radius:10px;margin-right:6px}
+.step.think{background:rgba(47,111,237,.10);color:var(--b)}
+.step.tool{background:rgba(124,92,255,.10);color:var(--p)}
+.step.speak{background:rgba(18,184,134,.10);color:var(--g)}
+.msg{color:var(--txt)}.msg .us{color:var(--cy);font-weight:600}
+.think{color:var(--b)}.tool{color:var(--p)}.speak{color:var(--g)}
+.err{color:var(--r);background:rgba(229,72,77,.06);border:1px solid rgba(229,72,77,.35);border-radius:6px;padding:6px 10px;margin-top:6px;font-size:12px}
+.toolrow{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim);margin-top:4px}
+.lat{font-family:monospace}.ok{color:var(--g)}.fail{color:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--dim);font-weight:500}
+.hidden{display:none}
+.note{background:rgba(47,111,237,.06);border:1px solid rgba(47,111,237,.25);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--dim);margin-bottom:12px}
+.chatbox{height:380px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.ch{max-width:78%}.ch.me{align-self:flex-end}.ch.kiri{align-self:flex-start}
+.ch-w{font-size:11px;color:var(--dim);margin-bottom:2px}
+.ch-t{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px}
+.ch.me .ch-t{background:rgba(47,111,237,.10)}
+.chatinput{display:flex;gap:8px;margin-top:10px}
+.chatinput input{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--txt);font-size:14px;outline:none}
+.chatinput button{padding:10px 20px;border:none;border-radius:8px;background:var(--b);color:#fff;cursor:pointer;font-size:14px}
+</style>
+</head>
+<body>
+<h1><span class="dot"></span>Kiri 控制台 <span class="sub">· 实时</span></h1>
+<nav>
+  <button class="on" data-pg="input">输入</button>
+  <button data-pg="overview">总览</button>
+  <button data-pg="trace">决策轨迹</button>
+  <button data-pg="tools">工具日志</button>
+  <button data-pg="events">事件流</button>
+</nav>
+
+<div id="pg-input">
+  <div class="note">这是<b>调试输入</b>通道：在控制台直接和 Kiri 说话、看她的回复与决策轨迹。<b>不代表 QQ 通道好坏</b>——QQ 状态请看"总览"里的桥接/僵尸连接指标。</div>
+  <div class="chatbox" id="chatbox"></div>
+  <div class="chatinput"><input id="chatInput" placeholder="给 Kiri 打字…" /><button id="chatSend">发送</button></div>
+</div>
+
+<div id="pg-overview">
+  <div class="health" id="health"></div>
+  <div class="grid" id="cards"></div>
+</div>
+
+<div id="pg-trace" class="hidden">
+  <div class="tl" id="trace"></div>
+</div>
+
+<div id="pg-tools" class="hidden">
+  <div class="card"><h3>最近工具调用</h3><table><thead><tr><th>时间</th><th>工具</th><th>参数</th><th>结果</th><th>状态</th><th>延迟</th></tr></thead><tbody id="tools"></tbody></table></div>
+</div>
+
+<div id="pg-events" class="hidden">
+  <div class="card"><h3>事件流 (最近)</h3><div id="events" style="font-size:12px" class="kv"></div></div>
+</div>
+
+<script>
+function ago(s){ if(s==null)return '—'; if(s<60)return s+'s'; if(s<3600)return Math.round(s/60)+'m'; return Math.round(s/3600)+'h'; }
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function isErr(x){return /失败|超时|异常|无监听|被踢|错误/.test(x||'');}
+const KIND_MAP={respond:'💬',thought:'💭',tool_call:'🛠',proactive:'✨',error:'⛔',warn:'⚠️',agent_trace:'🧭',curiosity:'🔍',social:'💬'};
+async function refresh(){
+  try{
+    const r=await fetch('/api/status'); const s=await r.json();
+    // 健康条
+    const b=s.bridge||{}, ai=s.ai||{};
+    document.getElementById('health').innerHTML=`
+      <div class="pill"><div class="k">账号在线</div><div class="v ${b.online?'ok':'bad'}">${b.online?'● 在线':'● 离线'}</div></div>
+      <div class="pill"><div class="k">QQ桥接</div><div class="v ${b.connected?'ok':'bad'}">${b.connected?'● 已连':'● 断开'}</div></div>
+      <div class="pill"><div class="k">群聊</div><div class="v">${b.groups??0} 个</div></div>
+      <div class="pill"><div class="k">告警(1h)</div><div class="v ${ai.api_errors_1h?'warn':'ok'}">${ai.api_errors_1h}</div></div>
+      <div class="pill"><div class="k">最后回复</div><div class="v">${ago(ai.last_respond_ago_s)}前</div></div>
+      <div class="pill"><div class="k">僵尸连接</div><div class="v ${(b.last_recv_ago_s&&b.last_recv_ago_s>120)?'warn':'ok'}">${b.last_recv_ago_s?ago(b.last_recv_ago_s)+'无事件':'—'}</div></div>`;
+    // 指标卡
+    const e=s.emotion||{}, mem=s.memory||{}, act=s.activity||{};
+    // 从轨迹聚合: 深想/视觉/生活/成本
+    const tr=s.trace||[];
+    const lastDeep=tr.find(t=>(t.steps||[]).some(x=>x.tool==='depth_think'));
+    const lastVis=tr.find(t=>(t.steps||[]).some(x=>x.tool==='look_image'||x.tool==='look_around'||x.tool==='read_image'));
+    const tools=s.tools||[];
+    const avgLat=tools.length? (tools.reduce((a,t)=>a+(t.latency||0),0)/tools.length).toFixed(2):'—';
+    document.getElementById('cards').innerHTML=`
+      <div class="card"><h3>情绪</h3><div class="kv">
+        <b>心情</b><span>${e.mood} · 愉悦 ${e.pleasure}</span><b>能量</b><span>${e.energy}</span>
+        <b>无聊</b><span>${e.boredom}</span><b>沉默</b><span>${e.silence_min} 分</span><b>动机</b><span>${esc(e.motivation||'—')}</span></div></div>
+      <div class="card"><h3>记忆库</h3><div class="kv">
+        ${Object.entries(mem.users||{}).map(([u,n])=>`<b>${esc(u)}</b><span>${n} 条</span>`).join('')||'<span>—</span>'}
+        <b>话题信号</b><span>${(mem.topic_signals&&mem.topic_signals.signals)||0} 个</span></div></div>
+      <div class="card"><h3>主动性 · 生活</h3><div class="kv">
+        <b>want_score</b><span>${esc(e.want||'—')}</span><b>活动</b><span>${esc(act.state||'—')}</span>
+        <b>打OSU</b><span>${act.gaming?'是':'否'}</span><b>最近深想</b><span>${lastDeep?esc(lastDeep.ts.slice(11,19)):'—'}</span></div></div>
+      <div class="card"><h3>成本 · 引擎</h3><div class="kv">
+        <b>工具调用(20)</b><span>${tools.length}</span><b>平均延迟</b><span>${avgLat}s</span>
+        <b>引擎</b><span>本地14B 日常</span><b>最近视觉</b><span>${lastVis?esc(lastVis.ts.slice(11,19)):'—'}</span></div></div>
+      <div class="card"><h3>近期事件</h3><div class="kv" style="font-size:12px">${
+        (s.events||[]).slice().reverse().slice(0,5).map(ev=>`<span style="${ev.kind==='error'?'color:var(--r)':''}">${(KIND_MAP[ev.kind]||'·')} ${ev.ts} · ${esc(ev.text)}</span>`).join('')||'<span>—</span>'}</div></div>`;
+    // 决策轨迹
+    document.getElementById('trace').innerHTML = tr.length? tr.map((t,i)=>{
+      const steps=(t.steps||[]).map(x=>{
+        if(x.type==='call'){
+          const e=isErr(x.result);
+          return `<div class="step think">think</div><div class="think">${esc(x.think||'{调工具}')}</div>
+            <div class="toolrow"><span class="tool">▸ ${esc(x.tool)}</span> <span class="${x.ok?'ok':'fail'}">${x.ok?'✓':'✗'}</span>${x.latency?`<span class="lat">${x.latency}s</span>`:''}</div>
+            ${x.result&&x.result!=='null'?`<div class="msg" style="color:var(--p)">${esc(String(x.result).slice(0,120))}</div>`:''}${e?'<div class="err">★ 容错自愈: 工具异常 → 重试/换法/如实说</div>':''}`;
+        }
+        if(x.type==='reply') return `<div class="step speak">speak</div><div class="speak">${esc(String(x.text||'').slice(0,160))}</div>`;
+        if(x.type==='think') return `<div class="step think">think</div><div class="think">${esc(String(x.text||'').slice(0,140))}</div>`;
+        return '';
+      }).join('');
+      return `<div class="turn"><div class="hdr"><span class="t">${esc(t.ts.slice(11,19))}</span><span class="tag">回合 #${tr.length-i}</span></div>
+        <div class="body"><div class="msg"><span class="us">${esc(t.user||'')}</span></div>${steps}</div></div>`;
+    }).join('') : '<div class="msg" style="color:var(--dim)">暂无决策轨迹（需要有真实的 agent 对话）</div>';
+    // 工具
+    document.getElementById('tools').innerHTML = tools.map(t=>
+      `<tr><td class="t">${t.ts}</td><td>${esc(t.tool)}</td><td>${esc(t.args)}</td>
+      <td class="${t.ok?'ok':'fail'}">${esc(String(t.result||'').slice(0,50))}</td><td>${t.ok?'✓':'✗'}</td><td>${t.latency}s</td></tr>`).join('')||'<tr><td colspan="6">(无)</td></tr>';
+    // 事件
+    document.getElementById('events').innerHTML = (s.events||[]).slice().reverse().map(ev=>
+      `<span style="${ev.kind==='error'?'color:var(--r)':''}">${(KIND_MAP[ev.kind]||'·')} <b>${ev.ts}</b> ${esc(ev.text)}</span>`).join('')||'<span>—</span>';
+  }catch(err){ document.getElementById('events').innerHTML='加载失败: '+err; }
+}
+document.querySelectorAll('nav button').forEach(b=>{b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  document.querySelectorAll('[id^=pg-]').forEach(p=>p.classList.add('hidden'));
+  document.getElementById('pg-'+b.dataset.pg).classList.remove('hidden');};});
+refresh(); setInterval(refresh,3000);
+// ★ 调试输入通道 (非QQ): 直接和 Kiri 说话
+const chatlog=[];
+function pushChat(who,txt){chatlog.push({who,txt});renderChat();}
+function renderChat(){document.getElementById('chatbox').innerHTML=chatlog.map(c=>
+  `<div class="ch ${c.who}"><div class="ch-w">${c.who==='me'?'你':'Kiri'}</div><div class="ch-t">${esc(c.txt)}</div></div>`).join('');
+  document.getElementById('chatbox').scrollTop=1e9;}
+async function sendChat(){
+  const inp=document.getElementById('chatInput');const t=inp.value.trim();if(!t)return;
+  inp.value='';pushChat('me',t);
+  let buf='';   // ★ 流式缓存: 遇 <sep> 才发一条 (QQ式分条, 2026-08-27)
+  try{
+    const r=await fetch('/api/chat_stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:t})});
+    if(!r.body){pushChat('kiri','(无流)');return;}
+    const reader=r.body.getReader();const dec=new TextDecoder();let sse='';
+    while(true){
+      const {done,value}=await reader.read();if(done)break;
+      sse+=dec.decode(value,{stream:true});
+      let p;
+      while((p=sse.indexOf('\n\n'))>=0){
+        const ev=sse.slice(0,p);sse=sse.slice(p+2);
+        if(!ev.startsWith('data: '))continue;
+        const payload=ev.slice(6).trim();
+        if(payload==='[DONE]')continue;
+        try{const d=JSON.parse(payload);if(d.chunk)buf+=d.chunk;}catch(e){}
+        // ★ 按 <sep> 分条: 每遇到完整段就发一条 (像 QQ 一条条消息)
+        let sp;
+        while((sp=buf.indexOf('<sep>'))>=0){
+          const seg=buf.slice(0,sp).trim();buf=buf.slice(sp+5);
+          if(seg)pushChat('kiri',seg);
+        }
+      }
+    }
+    const rest=buf.trim();
+    if(rest){pushChat('kiri',rest);}
+    else if(!chatlog.some(c=>c.who==='kiri'&&c.txt)){pushChat('kiri','(空)');}
+  }catch(e){pushChat('kiri','(发送失败: '+e+')');}}
+document.getElementById('chatSend').onclick=sendChat;
+document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat();});
+// ★ 她主动说 (M3 前置, 2026-08-27): 轮询 /api/proactive, 新主动消息推入聊天区 (样式主动)
+let proSeq=0;
+async function pollProactive(){
+  try{
+    const r=await fetch('/api/proactive?after='+proSeq);
+    const d=await r.json();
+    if(d.items&&d.items.length){
+      for(const it of d.items){
+        proSeq=Math.max(proSeq,it.seq);
+        pushChat('kiri','[主动] '+it.say);
+      }
+    }else if(d.latest){proSeq=d.latest;}
+  }catch(e){}
+}
+setInterval(pollProactive,8000); pollProactive();
+</script>
+</body>
+</html>

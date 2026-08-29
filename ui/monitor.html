@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kiri · 后台监控</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: #0a0f18;
+  color: #dfe7f2;
+  font-size: 13px;
+  overflow: hidden;
+}
+#app { display: flex; height: 100vh; }
+
+/* 左: 思考链 */
+#chain-col {
+  flex: 3; display: flex; flex-direction: column; min-width: 0;
+  border-right: 1px solid #16203a;
+}
+#chain-header, #tool-header {
+  padding: 10px 14px;
+  background: #101827;
+  border-bottom: 1px solid #1c2740;
+  font-size: 13px; font-weight: 600; letter-spacing: 1px;
+  display: flex; align-items: center; gap: 8px;
+}
+#chain-header .dot { width: 8px; height: 8px; border-radius: 50%; background: #6ee7b7; box-shadow: 0 0 5px #6ee7b7; }
+#chain-body { flex: 1; overflow-y: auto; padding: 10px 14px; }
+#chain-body .node {
+  padding: 8px 10px; margin-bottom: 8px; border-radius: 8px;
+  background: #101827; border-left: 3px solid #2b5cb8;
+}
+#chain-body .node.curiosity { border-left-color: #e8b23a; }
+#chain-body .node.thought { border-left-color: #a78bfa; }
+#chain-body .node .meta { font-size: 10px; color: #5f7293; margin-bottom: 3px; }
+#chain-body .node .text { color: #c3d0e4; line-height: 1.5; }
+#chain-body .node .mem { font-size: 10px; color: #6f83a3; margin-top: 3px; }
+#chain-body .node .res { font-size: 10px; color: #8fa3c4; margin-top: 3px; border-top: 1px dashed #1c2740; padding-top: 3px; }
+#chain-body .node .sal {
+  display: inline-block; font-size: 10px; padding: 0 5px; border-radius: 8px;
+  background: #1d2840; color: #8fa3c4; margin-left: 6px;
+}
+#chain-body .empty { color: #5f7293; text-align: center; margin-top: 40px; }
+
+/* 右: 工具调用 */
+#tool-col { flex: 2; display: flex; flex-direction: column; min-width: 0; }
+#tool-header .dot { width: 8px; height: 8px; border-radius: 50%; background: #e8b23a; box-shadow: 0 0 5px #e8b23a; }
+#tool-body { flex: 1; overflow-y: auto; padding: 10px 14px; }
+#tool-body .call {
+  padding: 7px 10px; margin-bottom: 6px; border-radius: 6px;
+  background: #0e1522; border: 1px solid #1c2740;
+}
+#tool-body .call .head { display: flex; align-items: center; gap: 8px; }
+#tool-body .call .name { color: #6ee7b7; font-weight: 600; }
+#tool-body .call .args { color: #8fa3c4; font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tool-body .call .st { font-size: 10px; padding: 1px 6px; border-radius: 8px; }
+#tool-body .call .st.ok { background: #123a2a; color: #6ee7b7; }
+#tool-body .call .st.fail { background: #3a1212; color: #f87d7d; }
+#tool-body .call .res { font-size: 10px; color: #6f83a3; margin-top: 4px; }
+#tool-body .empty { color: #5f7293; text-align: center; margin-top: 40px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #1c2740; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="chain-col">
+    <header id="chain-header"><span class="dot"></span> 思考链 (联想/好奇)</header>
+    <div id="chain-body"><div class="empty">等待她的思考…（沉默3分钟后启动联想）</div></div>
+  </div>
+  <div id="tool-col">
+    <header id="tool-header"><span class="dot"></span> 工具调用 (MCP)</header>
+    <div id="tool-body"><div class="empty">等待工具调用…（好奇触发时她会查资料）</div></div>
+  </div>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const chainEl = $("chain-body");
+const toolEl = $("tool-body");
+let api = null;
+let lastChain = "";
+let lastTools = "";
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+
+function render(data) {
+  if (!data) return;
+  const chain = data.chain || [];
+  if (JSON.stringify(chain) !== lastChain) {
+    lastChain = JSON.stringify(chain);
+    chainEl.innerHTML = chain.length ? chain.map(c => {
+      const cls = c.kind === "curiosity" ? "node curiosity"
+        : c.kind === "thought" ? "node thought" : "node";
+      const sal = c.salience !== undefined && c.salience !== null
+        ? `<span class="sal">${Number(c.salience).toFixed(2)}</span>` : "";
+      const rnd = c.round ? `<span class="sal">第${esc(c.round)}轮</span>` : "";
+      const vd = c.verdict ? `<span class="sal" style="background:#2b5cb8">${esc(c.verdict)}</span>` : "";
+      const mem = c.memory ? `<div class="mem">← 嚼记忆: ${esc(c.memory)}</div>` : "";
+      const res = c.result ? `<div class="res">🔍 ${esc(c.result)}</div>` : "";
+      const icon = c.kind === "curiosity" ? "❓ 好奇: "
+        : c.kind === "thought" ? "💭 内心独白: " : "💭 联想: ";
+      return `<div class="${cls}">
+        <div class="meta">${esc(c.ts || "")}${sal}${rnd}${vd}</div>
+        <div class="text">${icon}${esc(c.text)}</div>${mem}${res}
+      </div>`;
+    }).join("") : `<div class="empty">等待她的思考…（沉默3分钟后启动联想）</div>`;
+    chainEl.scrollTop = chainEl.scrollHeight;
+  }
+
+  const tools = data.tools || [];
+  if (JSON.stringify(tools) !== lastTools) {
+    lastTools = JSON.stringify(tools);
+    toolEl.innerHTML = tools.length ? tools.map(t => `
+      <div class="call">
+        <div class="head">
+          <span class="st ${t.ok ? 'ok' : 'fail'}">${t.ok ? '✓' : '✗'}</span>
+          <span class="name">${esc(t.tool || "")}</span>
+          <span class="args">${esc(t.args || "")}</span>
+          <span class="meta" style="color:#5f7293;font-size:10px">${esc(t.ts || "")} ${t.latency || ""}s</span>
+        </div>
+        <div class="res">${esc((t.result || "无结果").slice(0, 120))}</div>
+      </div>`).join("") : `<div class="empty">等待工具调用…（好奇触发时她会查资料）</div>`;
+    toolEl.scrollTop = toolEl.scrollHeight;
+  }
+}
+
+async function poll() {
+  if (!api) return;
+  try {
+    render(await api.get_monitor());
+  } catch (e) {
+    chainEl.innerHTML = `<div class="empty">桥接错误: ${esc(e)}</div>`;
+  }
+}
+
+(function waitApi() {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.get_monitor) {
+    api = window.pywebview.api;
+    poll();
+    setInterval(poll, 2000);
+  } else {
+    setTimeout(waitApi, 100);
+  }
+})();
+</script>
+</body>
+</html>

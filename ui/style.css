@@ -1,0 +1,96 @@
+/* Kiri 桌面应用 — 雾蓝深色主题 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: #0f1520;
+  color: #dfe7f2;
+  font-size: 14px;
+  overflow: hidden;
+}
+#app { display: flex; height: 100vh; }
+
+/* ---- 左: 聊天 ---- */
+#chat-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#chat-header {
+  padding: 12px 18px;
+  background: #161f30;
+  border-bottom: 1px solid #22304a;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 600;
+}
+.dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #6ee7b7; box-shadow: 0 0 6px #6ee7b7;
+}
+#chat-sub { font-size: 12px; color: #7d8ca6; font-weight: 400; margin-left: auto; }
+#voice-toggle {
+  cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 6px;
+  margin-left: 8px; user-select: none;
+}
+#voice-toggle:hover { background: #22304a; }
+#voice-toggle.off { opacity: 0.35; }
+#messages {
+  flex: 1; overflow-y: auto; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.msg { max-width: 78%; padding: 9px 13px; border-radius: 12px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word; }
+.msg.user { align-self: flex-end; background: #2b5cb8; border-bottom-right-radius: 3px; }
+.msg.assistant { align-self: flex-start; background: #1d2840; border-bottom-left-radius: 3px; }
+.msg.proactive { align-self: flex-start; background: #23344f; border-left: 3px solid #78a8ff; }
+.msg .time { display: block; font-size: 10px; color: #7d8ca6; margin-top: 4px; }
+#input-bar { display: flex; gap: 8px; padding: 12px 14px; background: #161f30; }
+#msg-input {
+  flex: 1; padding: 10px 14px; border-radius: 20px; border: 1px solid #2a3a58;
+  background: #0f1520; color: #dfe7f2; font-size: 14px; outline: none;
+}
+#msg-input:focus { border-color: #4a7fe0; }
+#send-btn {
+  padding: 0 22px; border-radius: 20px; border: none; background: #2b5cb8;
+  color: #fff; font-size: 14px; cursor: pointer;
+}
+#send-btn:hover { background: #3669cc; }
+
+/* ---- 右: 面板 ---- */
+#side-col {
+  width: 320px; border-left: 1px solid #22304a; background: #121a29;
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.panel { padding: 12px 14px; border-bottom: 1px solid #1c2740; }
+.panel h3 { font-size: 12px; color: #8fa3c4; margin-bottom: 8px; letter-spacing: 1px; }
+/* 折叠面板 */
+details.panel { padding: 0; }
+details.panel summary {
+  padding: 12px 14px; cursor: pointer; user-select: none;
+  font-size: 12px; color: #8fa3c4; letter-spacing: 1px;
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+details.panel summary::-webkit-details-marker { display: none; }
+details.panel summary::before {
+  content: "▸"; display: inline-block; transition: transform .15s;
+  color: #5f7293; font-size: 11px;
+}
+details.panel[open] summary::before { transform: rotate(90deg); }
+details.panel summary:hover { background: #16203a; }
+details.panel .list { padding: 0 14px 12px; max-height: 220px; overflow-y: auto; }
+/* 记忆面板: 折叠=自适应, 展开=占满剩余空间 */
+details.panel.grow { flex: 0 1 auto; min-height: 0; }
+details.panel.grow[open] { flex: 1 1 auto; display: flex; flex-direction: column; }
+details.panel.grow[open] .list { flex: 1; max-height: none; }
+.kv div { display: flex; justify-content: space-between; padding: 3px 0; }
+.kv span { color: #7d8ca6; }
+.kv b { font-weight: 500; }
+#stop-btn {
+  margin-top: 8px; width: 100%; padding: 7px; border-radius: 8px;
+  border: 1px solid #2a3a58; background: #1d2840; color: #dfe7f2; cursor: pointer;
+}
+.list { list-style: none; }
+.list li {
+  padding: 6px 0; border-bottom: 1px dashed #1c2740;
+  font-size: 12px; color: #c3d0e4;
+}
+.list.small li { font-size: 11px; color: #9fb1cd; }
+.list li .t { color: #6f83a3; margin-right: 6px; font-size: 10px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #2a3a58; border-radius: 3px; }

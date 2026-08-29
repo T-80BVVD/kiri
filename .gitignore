@@ -1,0 +1,76 @@
+# ===== Kiri 公开仓库 .gitignore（防泄露双保险）=====
+# 即使文件被误拷入目录，也不会被提交。
+
+# ---- 作者工具（不进公开仓库）----
+assemble_public.ps1
+
+# ---- 真实凭据 ----
+kiri/qq_config.json
+kiri/config/qq_config.json
+config/qq_config.json
+*.secret
+token.json
+.env
+.env.local
+credentials.yaml
+
+# ---- 运行时状态 / 群信息 / 日志 ----
+kiri/*.jsonl
+kiri/*.log
+kiri/state_save.json
+kiri/tool_seen.json
+kiri/topic_signals.json
+kiri/wander_dedup.json
+kiri/goals.jsonl
+kiri/qq_groups.json
+kiri/qq_official_groups.json
+kiri/qq_guardian_status.json
+kiri/kick_state.json
+kiri/emotion_events.jsonl
+kiri/data_log.jsonl
+kiri/app_run.log
+
+# ---- 真实对话 / 内心流 / 记忆 ----
+kiri/kiri_mind.jsonl
+kiri/history.jsonl
+kiri/events.jsonl
+kiri/proactives.jsonl
+kiri/her_essay*.txt
+kiri/her_essay*.md
+kiri/incident_2048_*
+kiri/mem_db/
+kiri/memory_db/
+kiri/*memory.json
+
+# ---- 蒸馏数据 / 训练产物 ----
+kiri/distill/data/
+kiri/distill/_audit/
+kiri/distill/*.log
+kiri/distill/kick_state.json
+kiri/*.pt
+kiri/bc_data.npy
+kiri/replays/
+kiri/osu_train*.log
+kiri/dataset/
+kiri/summaries/
+kiri/sim/
+
+# ---- 编译缓存 / 第三方产物 ----
+__pycache__/
+*.pyc
+kiri/unsloth_compiled_cache/
+kiri/distill/unsloth_compiled_cache/
+kiri/_neko_src/
+kiri/_neko_mc_src/
+kiri/_rlosu_src/
+.tmp_retest/
+
+# ---- 模拟 / 预测 ----
+kiri/pred_mem_*.jsonl
+
+# ---- IDE / OS ----
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store

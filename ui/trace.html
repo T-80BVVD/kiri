@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kiri · 回溯</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: #0a0f18;
+  color: #dfe7f2;
+  font-size: 13px;
+}
+/* 顶栏 */
+#topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: #101827;
+  border-bottom: 1px solid #1c2740;
+  position: sticky; top: 0; z-index: 10;
+  flex-wrap: wrap;
+}
+#topbar .title { font-weight: 600; letter-spacing: 1px; font-size: 14px; margin-right: 6px; }
+#topbar .title .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a78bfa; box-shadow: 0 0 5px #a78bfa; margin-right: 6px; }
+#topbar .spacer { flex: 1; }
+.chip {
+  padding: 3px 12px; border-radius: 12px; cursor: pointer;
+  background: #16203a; color: #8fa3c4; font-size: 12px;
+  border: 1px solid transparent; user-select: none;
+}
+.chip:hover { color: #dfe7f2; }
+.chip.on { background: #2b5cb8; color: #fff; }
+#usersel { background: #16203a; color: #dfe7f2; border: 1px solid #1c2740; border-radius: 8px; padding: 3px 8px; font-size: 12px; }
+#refresh { background: #1d2840; border: 1px solid #2b5cb8; color: #8fb4ff; border-radius: 8px; padding: 3px 12px; cursor: pointer; font-size: 12px; }
+#refresh:hover { color: #fff; }
+
+/* 时间线 */
+#tl { max-width: 980px; margin: 0 auto; padding: 16px 18px 60px; }
+.tline {
+  display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start;
+  animation: fade .25s ease;
+}
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+.tline .when { flex: 0 0 118px; text-align: right; color: #4d5f7d; font-size: 10.5px; padding-top: 7px; font-variant-numeric: tabular-nums; }
+.tline .who { flex: 0 0 44px; text-align: center; font-size: 10.5px; color: #8fa3c4; padding-top: 8px; }
+.tline .body { flex: 1; min-width: 0; }
+
+/* 对话气泡 */
+.bubble {
+  padding: 8px 13px; border-radius: 12px; line-height: 1.6;
+  background: #101827; display: inline-block; max-width: 88%;
+  white-space: pre-wrap; word-break: break-word;
+}
+.from-wumi { background: #13233f; border: 1px solid #1d3557; }
+.from-kiri { background: #221a3a; border: 1px solid #33265c; }
+.from-other { background: #0f2330; border: 1px solid #16405a; }
+.chat_user .body { text-align: left; }
+.chat_kiri .body { text-align: right; }
+.chat_user .bubble { border-left: 3px solid #6eb7f0; }
+.chat_kiri .bubble { border-right: 3px solid #a78bfa; text-align: left; }
+.chat_user .who { color: #6eb7f0; }
+.chat_kiri .who { color: #a78bfa; }
+
+/* 事件节点 */
+.ev {
+  padding: 7px 11px; border-radius: 8px;
+  background: #101827; border-left: 3px solid #2b5cb8;
+  line-height: 1.55;
+}
+.ev .tag { font-size: 10px; color: #5f7293; margin-bottom: 2px; }
+.ev .txt { color: #c3d0e4; }
+.ev .dtl { font-size: 10.5px; color: #8fa3c4; margin-top: 4px; border-top: 1px dashed #1c2740; padding-top: 4px; white-space: pre-wrap; word-break: break-word; }
+.ev .mem { font-size: 10px; color: #6f83a3; margin-top: 3px; }
+.ev.thought { border-left-color: #a78bfa; }
+.ev.reverie { border-left-color: #2b5cb8; }
+.ev.curiosity { border-left-color: #e8b23a; }
+.ev.tool_call { border-left-color: #34d399; }
+.ev.proactive { border-left-color: #fb923c; }
+.ev .sal { display: inline-block; font-size: 10px; padding: 0 5px; border-radius: 8px; background: #1d2840; color: #8fa3c4; margin-left: 6px; }
+.ev .st { font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+.ev .st.ok { background: #123a2a; color: #6ee7b7; }
+.ev .st.fail { background: #3a1212; color: #f87d7d; }
+#empty { color: #5f7293; text-align: center; margin-top: 60px; font-size: 13px; }
+#jump { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 6px; }
+#jump button {
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  background: #1d2840; color: #8fb4ff; border: 1px solid #2b5cb8; font-size: 16px;
+}
+#jump button:hover { background: #2b3a5c; color: #fff; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #1c2740; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span class="title"><span class="dot"></span>Kiri · 回溯</span>
+  <span class="chip on" data-k="all">全部</span>
+  <span class="chip" data-k="chat">对话</span>
+  <span class="chip" data-k="thought">念头</span>
+  <span class="chip" data-k="reverie">联想</span>
+  <span class="chip" data-k="curiosity">好奇</span>
+  <span class="chip" data-k="tool_call">工具</span>
+  <span class="chip" data-k="proactive">主动</span>
+  <span class="spacer"></span>
+  <select id="usersel">
+    <option value="">全部用户</option>
+    <option value="雾弥">雾弥</option>
+  </select>
+  <button id="refresh">刷新</button>
+</div>
+<div id="tl"><div id="empty">加载中…</div></div>
+<div id="jump">
+  <button id="toBottom" title="回到底部">↓</button>
+  <button id="toTop" title="回到顶部">↑</button>
+</div>
+<script>
+"use strict";
+const tl = document.getElementById("tl");
+let api = null;
+let filter = "all";
+let userFilter = "";
+let knownUsers = new Set(["雾弥"]);
+
+const KIND_LABEL = {
+  chat_user: "雾弥 → 她", chat_kiri: "她 → 对方",
+  thought: "💭 内心独白", reverie: "💭 联想",
+  curiosity: "❓ 好奇", tool_call: "🔧 工具调用", proactive: "📢 主动发言",
+};
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+
+function kindOf(k) {
+  if (k === "chat_user" || k === "chat_kiri") return "chat";
+  return k;
+}
+
+function render(rows) {
+  const items = (rows || []).filter(r => {
+    if (filter !== "all" && kindOf(r.kind) !== filter) return false;
+    if (userFilter && r.user !== userFilter) return false;
+    return true;
+  });
+  if (!items.length) {
+    tl.innerHTML = `<div id="empty">这一段时间里，这里什么都没有。<br>（她还没醒，或者这段历史还没发生）</div>`;
+    return;
+  }
+  const html = items.map(r => {
+    const k = r.kind;
+    const who = r.user || "";
+    if (who) knownUsers.add(who);
+    const whoTxt = who === "雾弥" ? "雾" : (who || "—");
+    const ts = (r.ts || "").slice(5, 16); // MM-DD HH:MM:SS
+    if (k === "chat_user" || k === "chat_kiri") {
+      const cls = who === "雾弥" ? "from-wumi" : (k === "chat_kiri" ? "from-kiri" : "from-other");
+      return `<div class="tline ${k}">
+        <div class="when">${esc(ts)}</div>
+        <div class="who">${esc(k === "chat_kiri" ? (whoTxt === "—" ? "她" : "她→" + whoTxt) : whoTxt)}</div>
+        <div class="body"><span class="bubble ${cls}">${esc(r.text)}</span></div>
+      </div>`;
+    }
+    const sal = r.salience != null ? `<span class="sal">${Number(r.salience).toFixed(2)}</span>` : "";
+    const st = k === "tool_call" && r.ok != null
+      ? `<span class="st ${r.ok ? 'ok' : 'fail'}">${r.ok ? '✓' : '✗'}${r.latency != null ? ' ' + Number(r.latency).toFixed(1) + 's' : ''}</span>` : "";
+    const dtl = r.detail ? `<div class="dtl">${esc(r.detail).slice(0, 400)}</div>` : "";
+    const mem = r.memory ? `<div class="mem">← 嚼记忆: ${esc(r.memory)}</div>` : "";
+    const whoT = who ? `<span style="color:#8fa3c4">[${esc(whoTxt)}]</span> ` : "";
+    return `<div class="tline">
+      <div class="when">${esc(ts)}</div>
+      <div class="who">${esc(KIND_LABEL[k] ? (KIND_LABEL[k].split(" ")[0]) : "")}</div>
+      <div class="body"><div class="ev ${esc(k)}">
+        <div class="tag">${esc(KIND_LABEL[k] || k)} ${whoT}${sal}${st}</div>
+        <div class="txt">${esc(r.text)}</div>${mem}${dtl}
+      </div></div>
+    </div>`;
+  }).join("");
+  tl.innerHTML = html;
+  // 用户下拉补全新用户
+  const sel = document.getElementById("usersel");
+  const cur = sel.value;
+  const opts = [["", "全部用户"], ...[...knownUsers].sort().map(u => [u, u])];
+  sel.innerHTML = opts.map(([v, t]) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(t)}</option>`).join("");
+}
+
+async function poll() {
+  if (!api) return;
+  try {
+    const rows = await api.get_trace(300);
+    render(rows);
+  } catch (e) {
+    tl.innerHTML = `<div id="empty">桥接错误: ${esc(e)}</div>`;
+  }
+}
+
+document.querySelectorAll(".chip").forEach(ch => {
+  ch.addEventListener("click", () => {
+    document.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+    ch.classList.add("on");
+    filter = ch.dataset.k;
+    poll();
+  });
+});
+document.getElementById("usersel").addEventListener("change", e => {
+  userFilter = e.target.value;
+  poll();
+});
+document.getElementById("refresh").addEventListener("click", poll);
+document.getElementById("toBottom").addEventListener("click", () => window.scrollTo(0, document.body.scrollHeight));
+document.getElementById("toTop").addEventListener("click", () => window.scrollTo(0, 0));
+
+(function waitApi() {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.get_trace) {
+    api = window.pywebview.api;
+    poll();
+    setInterval(poll, 3000);
+  } else {
+    setTimeout(waitApi, 100);
+  }
+})();
+</script>
+</body>
+</html>

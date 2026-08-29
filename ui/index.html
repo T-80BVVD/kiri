@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kiri</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- 左: 聊天 -->
+  <main id="chat-col">
+    <header id="chat-header">
+      <span class="dot"></span> Kiri · 雾弥的雾
+      <span id="voice-toggle" title="语音开关">🔊</span>
+      <span id="chat-sub">她一直在</span>
+    </header>
+    <div id="messages"></div>
+    <footer id="input-bar">
+      <input id="msg-input" type="text" placeholder="和 Kiri 说话…（Enter 发送）" autocomplete="off">
+      <button id="send-btn">发送</button>
+    </footer>
+  </main>
+
+  <!-- 右: 面板 -->
+  <aside id="side-col">
+    <section class="panel">
+      <h3>内心状态</h3>
+      <div id="status" class="kv">
+        <div><span>心情</span><b id="s-mood">-</b></div>
+        <div><span>愉悦</span><b id="s-pleasure">-</b></div>
+        <div><span>无聊</span><b id="s-boredom">-</b></div>
+        <div><span>沉默</span><b id="s-silence">-</b></div>
+        <div><span>今日主动余量</span><b id="s-budget">-</b></div>
+        <div><span>状态</span><b id="s-stopped">-</b></div>
+      </div>
+      <button id="stop-btn">暂停/恢复主动</button>
+    </section>
+
+    <details class="panel">
+      <summary>💌 她的主动</summary>
+      <ul id="proactives" class="list"></ul>
+    </details>
+
+    <details class="panel">
+      <summary>📜 最近事件</summary>
+      <ul id="logs" class="list small"></ul>
+    </details>
+
+    <details class="panel grow" open>
+      <summary>🗂️ 她的记忆</summary>
+      <ul id="memories" class="list small"></ul>
+    </details>
+  </aside>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
