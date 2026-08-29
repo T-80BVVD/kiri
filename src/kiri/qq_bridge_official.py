@@ -326,7 +326,8 @@ class QQBridgeOfficial:
         # 群上下文 (最近几条, 喂给 respond 防单条错配)
         ctx = self._group_context(gid)
         try:
-            reply = await self._safe_respond(content, user_openid, scene="group",
+            # 身份用显示名 (owner=雾弥), 而非原始 openid — 这样 Kiri 能认出主人
+            reply = await self._safe_respond(content, who, scene="group",
                                              group_context=ctx)
         except Exception:
             return
@@ -348,7 +349,8 @@ class QQBridgeOfficial:
         if not content:
             return
         try:
-            reply = await self._safe_respond(content, user_openid, scene="private")
+            # 身份用显示名 (owner=雾弥), 而非原始 openid — 这样 Kiri 能认出主人
+            reply = await self._safe_respond(content, who, scene="private")
         except Exception:
             return
         if reply:

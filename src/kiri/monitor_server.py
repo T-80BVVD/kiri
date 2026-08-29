@@ -177,7 +177,7 @@ def build_status(kiri, bridge):
     try:
         for u in kiri.memory.users()[:8]:
             dlg = kiri.get_dialog(u)
-            st["working"]["dialogs"][u] = [m.get("text", "")[:60] for m in dlg[-6:]]
+            st["working"]["dialogs"][u] = [m.get("text", "")[:60] for m in dlg[-30:]]
         st["working"]["thoughts"] = [t[:80] for t in kiri.state.thoughts[-5:]]
     except Exception:
         pass

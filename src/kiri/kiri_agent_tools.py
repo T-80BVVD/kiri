@@ -148,7 +148,7 @@ def make_internal_execute(kiri):
                 dlg = k.get_dialog(u)
                 if not dlg:
                     return f"(和{u}还没聊过)"
-                return "\n".join(f"- {m['role']}: {m['text'][:60]}" for m in dlg[-6:])
+                return "\n".join(f"- {m['role']}: {m['text'][:60]}" for m in dlg[-30:])
 
             if tool_name == "proactive_state":
                 silence = int((time.time() - k.state.last_interact) / 60)

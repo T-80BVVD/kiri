@@ -97,15 +97,15 @@ class ReverieEngine:
         # 关系 (按联想用户)
         rel = st.social.relationships.get(user, {})
         intimacy = rel.get("intimacy", 0.0)
-        # 最近对话 (最近4条, 联想用户的对话 — 让她看到自己跟谁说过什么)
+        # 最近对话 (最近30条, 联想用户的对话 — 让她看到自己跟谁说过什么)
         recent = ""
         dlg = k.get_dialog(user) if hasattr(k, "get_dialog") else k.dialog
         if dlg:
             parts = []
-            for m in dlg[-4:]:
+            for m in dlg[-30:]:
                 who = user if m["role"] == "user" else "你"
                 parts.append(f"{who}: {m['text'][:50]}")
-            recent = "最近对话: " + " | ".join(parts)
+            recent = "最近对话: " + " | ".join(parts[-20:])
         return (f"{t}。你的心情{mood_txt}。{user}已沉默约{silence}分钟。"
                 f"你们的关系亲密程度约{intimacy:.2f}。{recent}")
 

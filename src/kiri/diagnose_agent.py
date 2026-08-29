@@ -156,6 +156,15 @@ class DiagnoseManager:
                         "(里面是 .bin/.sqlite3 二进制, 直接读文件看不懂, 也没有 jsonl)。"
                         "要读记忆用 memory_recall 工具(内部向量检索最准); 想了解记忆结构读 kiri/memory.py 的代码。"
                         "别在 mem_db 文件层翻来翻去找 jsonl 了——那里没有人类可读的文件, 翻多少次都一样。")
+                    # ★ 目标召回 (2026-08-29 雾弥: 自主行动记得要干啥 — 注入她的目标)
+                    try:
+                        import goals
+                        _gl = goals.list_goals()
+                        if "你的目标:" in str(_gl):
+                            sys_p += "\n\n★ 你心里惦记着的事(你的目标):\n" + str(_gl) + \
+                                     "\n做这些的时候, 记得它们是你要完成的, 做完一件再下一件。"
+                    except Exception:
+                        pass
                 else:
                     sys_p = (
                         "你是 Kiri, 在排查自己工具的问题。你的目标: 找到根因, 并且如果能修就直接动手修"

@@ -12,6 +12,11 @@ CHAT_ACTIVE_TS = [0.0]        # 最近一次置位时间; daemon 检查 "置位�
 #   已切 api; 如需本地, 改回 "local" 并确保 local_serve 在 8767 跑着
 ENGINE = "api"                        # "api" | "local"(本地推理服务)
 API_MODEL = "deepseek-v4-flash"     # ★ V4 Flash (便宜快; API仅此+pro两个模型, deepseek-chat旧名已弃)
+# ★ 每日 API 费用预算 (2026-08-29, 控制"自主行动"花费; 你@她的对话不受限)
+BUDGET_SWEET = 25.0                   # 甜点区上限(元): 正常自主
+BUDGET_HARD = 40.0                    # 硬上限(元): 超过自主静默
+PRICE_INPUT_PER_M = 1.5               # 输入 元/百万token (DeepSeek V4 Flash 调价后)
+PRICE_OUTPUT_PER_M = 4.5              # 输出 元/百万token
 LOCAL_MODEL = "deepseek-llm-7b-chat"  # 本地模型(待测试, D:\alice)
 LOCAL_OLLAMA_URL = "http://127.0.0.1:11434"  # (弃用, 本地走 local_serve)
 LOCAL_SERVE_URL = "http://127.0.0.1:8767"    # ★ 2026-08-22 本地推理服务 (local_serve.py: 4bit+QLoRA)

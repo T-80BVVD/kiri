@@ -320,6 +320,23 @@ class Kiri:
             self._dialogs[user] = []
         return self._dialogs[user]
 
+    def _dialog_summary(self, dlg, user_text, who):
+        """工作记忆: 把对话历史压成简短摘要, 而非 30 条原文 (2026-08-29)
+        ★ 旧对话容易被当成回应对象 → 只留最近几轮做"刚才聊了什么"的背景,
+          并强调"最新的这句才是要回应的, 前面只是背景"。"""
+        if not dlg:
+            return user_text
+        # 最近几轮原文 (工作记忆: 保留最近的真实对话, 但收紧到 6 条)
+        recent = [m for m in dlg[-6:] if m.get("text")]
+        lines = []
+        for m in recent:
+            role = "你" if m["role"] == "kiri" else who
+            lines.append(f"{role}: {m['text'][:60]}")
+        ctx = "\n".join(lines)
+        return (f"【刚才聊的】(背景, 不用复述)\n{ctx}\n\n"
+                f"【{who}现在说】\n{user_text}\n"
+                f"——直接回应这一句。前面的只是背景，不要提也没必要复述它们。")
+
     def _restore_dialog(self):
         """从 history.jsonl 恢复最近几轮对话 (重启后仍记得刚才聊的内容)
         ★ 多用户: 按 user 字段分组恢复, 每个人的对话回到各自名下
@@ -351,9 +368,9 @@ class Kiri:
             # 取最近14条(7轮) 每人
             for u, rows in per_user.items():
                 if rows:
-                    self._dialogs[u] = rows[-14:]
+                    self._dialogs[u] = rows[-30:]
                     if u == self.DEFAULT_USER:
-                        self.dialog = rows[-14:]
+                        self.dialog = rows[-30:]
         except Exception:
             pass
 
@@ -626,12 +643,10 @@ class Kiri:
                 #   agent 前几轮决策: 若她直接reply → 快速答; 若她开始探索(调了工具) →
                 #   立即转后台不限时深挖 (respond 秒回, 她自然停止才有结果)
                 agent_loop = agent.AgentLoop(agent_sys, tools, execute, memory=self.memory)  # ★ 长中短: 传入记忆系统
-                ctx_lines = []
-                for m in dlg[-6:]:
-                    role = "你" if m["role"] == "kiri" else who
-                    ctx_lines.append(f"{role}: {m['text'][:80]}")
-                agent_input = (f"【对话上下文】\n" + "\n".join(ctx_lines[-4:])
-                               + f"\n\n【{who}现在说】\n{user_text}") if ctx_lines else user_text
+                # ★ B方案: 生成回复前重新取最新对话 + 摘要注入 (2026-08-29)
+                #   工作记忆: 不用 30 条原文(旧对话会绑架她), 只留最近几轮的精简摘要
+                dlg = self.get_dialog(user)
+                agent_input = self._dialog_summary(dlg, user_text, who)
                 # ★ 2026-08-21 雾弥指示: 取消10秒时间预算 (探索不该限时, 写长文几十分钟都可能)
                 #   agent 完全自主: 想探索就探索(防死循环靠打转检测), 想回复就回复
                 #   need_deep 不再由"调了工具"触发, 而由 agent 的回复内容判定:
@@ -811,7 +826,7 @@ class Kiri:
         dlg.append({"role": "user", "text": user_text[:300]})
         dlg.append({"role": "kiri", "text": reply[:300]})
         if len(dlg) > 14:
-            self._dialogs[user] = dlg[-14:]
+            self._dialogs[user] = dlg[-30:]
         self.dialog = self._dialogs.get(user, dlg)
         # ★ 内心独白异步生成 (后台线程, 不阻塞回复返回, 延迟减半)
         self._spawn_thought(reply, user_text, user=user)
@@ -835,7 +850,7 @@ class Kiri:
         e = self.state.emotion.state
         self._log_event("respond",
                         sender=user,               # ★ 谁发的 (雾弥/阿明/QQ号) — 多用户审计
-                        user=user_text[:100], reply=reply[:200],
+                        user=user, reply=reply[:200],
                         mood=round(e["deep_affect"]["current_mood"], 2),
                         pleasure=round(e["surface_emotion"]["pleasure"], 2),
                         boredom=round(self.state.boredom, 2),
@@ -1099,7 +1114,7 @@ class Kiri:
             wdlg = self.get_dialog(self.DEFAULT_USER)
             wdlg.append({"role": "kiri", "text": say[:300]})
             if len(wdlg) > 14:
-                self._dialogs[self.DEFAULT_USER] = wdlg[-14:]
+                self._dialogs[self.DEFAULT_USER] = wdlg[-30:]
             self.dialog = self._dialogs.get(self.current_user, wdlg)
             self.memory.encode(f"你主动联系了雾弥: {say}",
                                self.state.emotion.state, session=self.session,
@@ -1174,7 +1189,7 @@ class Kiri:
         wdlg = self.get_dialog(self.DEFAULT_USER)
         wdlg.append({"role": "kiri", "text": say[:300]})
         if len(wdlg) > 14:
-            self._dialogs[self.DEFAULT_USER] = wdlg[-14:]
+            self._dialogs[self.DEFAULT_USER] = wdlg[-30:]
         self.dialog = self._dialogs.get(self.current_user, wdlg)
         self.memory.encode(f"你主动联系了雾弥: {say}",
                            self.state.emotion.state, session=self.session,
