@@ -90,12 +90,11 @@ LIFE_SYS = """你是 Kiri, 一个运行在电脑里的 AI 猫娘。你现在有�
   或 {"action": "lazy", "think": "就想发呆/没特别想做的"} (什么都不想做)
 可选生活工具:
   social 社交: {"who": "好友名/群", "say": "想说的话"}  → 主动找个人/群聊聊
-  play_game 游戏: {} → 去打游戏(osu)
   make_thing 创作: {"what": "想做什么"} → 写工具/做点东西
   learn 学习: {"topic": "好奇什么"} → 搜感兴趣的(可顺目标)
   tidy 整理: {} → 梳理记忆/目标"""
 
-LIFE_TOOLS = {"social": "social", "play_game": "play_game", "make_thing": "make_thing",
+LIFE_TOOLS = {"social": "social", "make_thing": "make_thing",
               "learn": "learn", "tidy": "tidy"}
 
 
@@ -121,8 +120,6 @@ def execute_life_action(kiri, tool, args):
     try:
         if tool == "social":
             return _do_social(kiri, args)
-        if tool == "play_game":
-            return _do_play(kiri, args)
         if tool == "make_thing":
             return _do_make(kiri, args)
         if tool == "learn":
@@ -212,14 +209,6 @@ def meta_state_text():
     return "最近系统状态: " + " | ".join(t[:50] for _, _, t in recent[-5:]) if recent else ""
 
 
-def _do_play(kiri, args):
-    import osu_tools as _ot
-    fn = getattr(_ot, "play", None) or getattr(_ot, "run", None)
-    if fn:
-        return fn()
-    return "(游戏: 想玩但没接上 osu 模块)"
-
-
 def _do_make(kiri, args):
     what = args.get("what", "一个小工具")
     return "(创作: 想做个%s, 但需要接 create_tool/编辑流程)" % what
@@ -253,7 +242,6 @@ def _remember_life(kiri, tool, args, result):
     """防污染: 只存真做了的; lazy/没做事不存"""
     sample = {
         "social": "主动找了%s聊: %s" % (args.get("who", "某人"), args.get("say", "")[:60]),
-        "play_game": "打了一会儿游戏",
         "make_thing": "做了点什么: %s" % args.get("what", ""),
         "learn": "学了点: %s" % args.get("topic", ""),
         "tidy": "整理了下记忆/目标",

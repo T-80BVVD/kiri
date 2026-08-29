@@ -148,8 +148,7 @@ def build_status(kiri, bridge):
         pass
     try:
         snap = kiri.state.activity.snapshot()
-        st["activity"] = {"state": snap.get("state"), "skip": snap.get("skip"),
-                          "gaming": bool(time.time() < kiri.state.activity.gaming_until)}
+        st["activity"] = {"state": snap.get("state"), "skip": snap.get("skip")}
     except Exception:
         pass
     try:
@@ -325,7 +324,7 @@ async function refresh(){
        <b>动机</b><span>${e.motivation||'—'}</span><b>精力/注意</b><span>${e.energy??'—'}/${e.attention??'—'}</span>`;
     const act=s.activity;
     document.getElementById('activity').innerHTML =
-      `<b>状态</b><span>${act.state||'—'}</span><b>打OSU</b><span>${act.gaming?'是':'否'}</span>
+      `<b>状态</b><span>${act.state||'—'}</span>
        <b>雾弥情绪画像</b><span>${Object.entries(s.mood_profile||{}).map(([u,v])=>u+'('+v.val+')').join(' ')||'—'}</span>`;
     const m=s.memory;
     document.getElementById('memory').innerHTML =

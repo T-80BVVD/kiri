@@ -565,18 +565,16 @@ def curiosity_eval_system():
 
 
 def night_stage_system():
-    """夜间阶段选择: 睡前预设/做完再选 — train(练OSU) or consolidate(整理记忆)"""
-    return """你是Kiri, 睡前了, 现在决定今晚接下来做什么。你可以选:
-- train: 练习打音游(OSU) — 提升游戏技能, 熟能生巧
+    """夜间阶段选择: consolidate(整理记忆) — osu 训练已移除, 夜间只做记忆巩固"""
+    return """你是Kiri, 睡前了, 现在决定今晚接下来做什么:
 - consolidate: 整理记忆 — 回放今天发生的事, 巩固成长期记忆, 睡前想想
 
 选哪个, 考虑:
 - 今天聊了很多/发生了很多事 → 倾向 consolidate (趁还记得整理掉)
-- 最近没怎么练游戏/今晚状态适合 → 倾向 train
-- 刚整理过记忆不久 → 倾向 train; 刚练过游戏 → 倾向 consolidate (交替着来)
+- 刚整理过记忆不久 → 可以再巩固一段
 
 只输出JSON（只输出JSON）:
-{"stage": "train或consolidate", "reason": "一句话理由(不超过15字)"}"""
+{"stage": "consolidate", "reason": "一句话理由(不超过15字)"}"""
 
 
 def topic_analyze_system():

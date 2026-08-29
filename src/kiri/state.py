@@ -209,19 +209,17 @@ class State:
 
     def should_proactive(self, has_event=False):
         """返回 (是否触发, 触发原因)
-        NEKO activity吸收: PASS门顺序 busy→gaming→欢迎窗→追问窗→意愿分
+        NEKO activity吸收: PASS门顺序 busy→欢迎窗→追问窗→意愿分
         预算制已取消: 频率由 意愿分阈值+最小间隔+深夜+刚互动 控制
         has_event: 存在高情绪强度事件由头 (M3) → 意愿分提升, 更易开口 (有真实落点)"""
         now = time.time()
         if self.stopped:
             return False, "stopped"
-        # NEKO PASS门: busy(生成中)/gaming(打OSU) 不主动
+        # NEKO PASS门: busy(生成中) 不主动
         try:
             snap = self.activity.snapshot(user=self.DEFAULT_USER, now=now)
             if snap["state"] == "busy":
                 return False, "activity_busy"
-            if snap["state"] == "gaming":
-                return False, "activity_gaming"
             # 回归欢迎窗: 用户刚从 away 回来 → 她可以先开口 (压倒 too_recent)
             if snap.get("greeting_window") and now - self.last_proactive >= 60:
                 return True, "greeting"

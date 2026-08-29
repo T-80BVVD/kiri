@@ -3,7 +3,7 @@
 =====================================================================
 设计 (雾弥 2026-08-17):
   她"睡觉"时不是死寂 — 夜间是她的"自我时间":
-  - 睡前预设阶段: 训练(打OSU练手) 或 整理记忆(回放今天→巩固→睡前回想)
+  - 睡前阶段: 整理记忆(回放今天→巩固→睡前回想)
   - 做完一个阶段 → LLM 再看状态选下一个 → 循环到早晨
   阶段选择是自主的 (LLM 看情绪/最近整理时间/训练状态决定)
 记录: data_log.jsonl (kind=night_stage) — 夜间活动的分析数据
@@ -37,7 +37,7 @@ class NightLoop:
 
     # ---- 阶段选择 (睡前预设 / 做完再选) ----
     def _choose_stage(self):
-        """LLM 看当前状态选: train(练OSU) / consolidate(整理记忆)"""
+        """LLM 看当前状态选: 整理记忆 (osu 训练已移除, 夜间只做记忆巩固)"""
         try:
             state = self.kiri.state.describe()
             recent = "、".join(f"{h['stage']}({h.get('reason', '')[:10]})" for h in self.history[-3:]) or "(今晚刚开始)"
@@ -50,10 +50,8 @@ class NightLoop:
                 stage = str(d.get("stage", "")).strip().lower()
                 reason = str(d.get("reason", ""))[:30]
             else:
-                # 容错: 原文里找关键词
-                stage = "train" if re.search(r'train|训练|练', raw) else "consolidate"
                 reason = str(raw)[:30]
-            if stage not in ("train", "consolidate"):
+            if stage != "consolidate":
                 stage = "consolidate"
             return stage, reason
         except Exception:
@@ -64,10 +62,7 @@ class NightLoop:
         """执行一个夜间阶段 → 记录 data_log"""
         stage, reason = self._choose_stage()
         t0 = time.time()
-        if stage == "train":
-            result = self._do_train()
-        else:
-            result = self._do_consolidate()
+        result = self._do_consolidate()
         latency = round(time.time() - t0, 1)
         self.stage_count += 1
         self.last_stage = time.time()
@@ -84,36 +79,6 @@ class NightLoop:
         logger = __import__("logging").getLogger("kiri")
         logger.info(f"夜间阶段[{stage}] 第{self.stage_count}个: {reason} → {str(result)[:40]}")
         return stage, result
-
-    def _do_train(self):
-        """训练: 打OSU RL — 夜间GPU空闲正好训练 (每阶段15局, 接着上次模型练)"""
-        try:
-            import os
-            import osu_rl
-            import osu_env
-            import osu_parser
-            beatmaps = [osu_parser.generate_beatmap(20, seed=i) for i in range(5)]
-            # 简单真实谱面优先 (AR<=6.5 音符<=250, 当前模型水平能打)
-            for src in [r"D:\osu_beatmaps", os.path.expandvars(r"%APPDATA%\osu\files")]:
-                if os.path.isdir(src):
-                    if src.endswith("osu_beatmaps"):
-                        beatmaps += osu_parser.find_beatmaps(src)
-                    else:
-                        beatmaps += osu_parser.scan_lazer_files(src)
-            if beatmaps:
-                beatmaps.sort(key=lambda b: (float(b.get("ar", 9)), len(b.get("notes", []))))
-                easy = [b for b in beatmaps if float(b.get("ar", 9)) <= 6.5
-                        and len(b.get("notes", [])) <= 250]
-                if easy:
-                    beatmaps = easy
-            env = osu_env.SimEnv()
-            agent = osu_rl.train(env, beatmaps, episodes=15, mode="vector", resume=True)
-            # 打完一局看当前水平
-            r, st = osu_rl.play_episode(env, agent, beatmaps[0], epsilon=0.0)
-            return (f"训练15局(累计), 当前水平: acc={st['acc']*100:.1f}% "
-                    f"combo={st['max_combo']}/{st['total_notes']} score={st['score']}")
-        except Exception as e:
-            return f"OSU训练出错: {e}"
 
     def _do_consolidate(self):
         """整理记忆: 知识页合成 + 巩固 + 当天总结 + 睡前回想"""

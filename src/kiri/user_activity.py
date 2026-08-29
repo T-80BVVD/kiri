@@ -4,15 +4,15 @@
 NEKO 决策链: OS信号 → 活动跟踪器 → 状态机(11态) → propensity/skip → PASS门 → 投递
 Kiri 是 QQ 平台, 没有桌面进程检测, 信号只剩:
   - 用户消息时间戳(私聊/群) + 消息特征(长度/频率)
-  - Kiri 自身状态: 是否在生成回复(busy) / 是否在打 OSU(gaming)
-状态缩为 6 态: chatting(用户在说话) / just_replied(刚回) / quiet / away(久静)
-              / gaming(打OSU) / busy(生成中)
+  - Kiri 自身状态: 是否在生成回复(busy)
+状态缩为 5 态: chatting(用户在说话) / just_replied(刚回) / quiet / away(久静)
+              / busy(生成中)
 必抄机制 (雾弥 2026-08-19 决策):
   ① charge 累加器+迟滞带 (focus_scorer): 单条消息不直接判定,
      charge=charge×0.5+score, ≥0.6 进入"engaged"(不打扰), <0.3 退出 — 防单条误判的敏感度记忆
   ② 回归欢迎窗: away(≥60min静默) 后用户回归 → 60s 内允许她主动说一句欢迎/接话
   ③ unfinished_thread 追问窗: 她上轮以问句结尾且用户未回 → 5min 内允许一次追问, 用户回复即清除
-  ④ PASS 门: busy → gaming → chatting → 冷却 → 概率 → 无话题 (任一命中本轮放弃)
+  ④ PASS 门: busy → chatting → 冷却 → 概率 → 无话题 (任一命中本轮放弃)
   ⑤ 投递前复查: 发之前再看一眼用户是否刚说过话 (中途插话即放弃)
 =====================================================================
 """
@@ -43,7 +43,6 @@ CHARGE_RETENTION = 0.5            # 每轮保留 (NEKO: 0.5)
 CHARGE_CAP = 1.0
 CHARGE_HALF_LIFE = 1200           #  时间衰减半衰期20min (NEKO: 0.02/s 太急, 20min温和)
 QUESTION_TAIL = ("?", "？", "吗", "呢", "么", "吧", "没", "对不对", "是不是")
-GAMING_SKIP = 0.8                 # 打OSU时主动发言的跳过概率
 
 
 def _ends_with_question(text):
@@ -69,7 +68,6 @@ class UserActivity:
         self.followup_used = {}     # user -> 追问已用时间 (一次, 用户回复才清除)
         self.greeting_armed = {}    # user -> 回归欢迎窗武装时间 (曾away后回归, sticky)
         self.charge = {}            # user -> {"v": 敏感度值, "ts": 更新时间} (engaged 判定)
-        self.gaming_until = 0.0     # 全局: 打OSU 结束时间 (期间不主动打扰)
         self.busy_until = 0.0       # 全局: Kiri 生成中 (PASS_BUSY)
         self._msg_window = {}       # user -> [ts,...] 最近消息 (节奏/cadence)
         self._len_window = {}       # user -> [len,...] 最近消息长度
@@ -110,10 +108,6 @@ class UserActivity:
     def note_busy(self, seconds=60):
         """Kiri 开始生成: 生成期间不主动 (PASS_BUSY)"""
         self.busy_until = time.time() + seconds
-
-    def note_gaming(self, seconds=600):
-        """她开始打 OSU: 期间不主动打扰 (GAMING_SKIP)"""
-        self.gaming_until = time.time() + seconds
 
     # ---- charge 累加器 (focus_scorer 移植: 迟滞带+敏感度记忆) ----
     def _update_charge(self, u, now):
@@ -162,8 +156,6 @@ class UserActivity:
 
         if now < self.busy_until:
             return {"state": "busy", "skip": 1.0}
-        if now < self.gaming_until:
-            return {"state": "gaming", "skip": GAMING_SKIP}
         if self.is_engaged(u, now):
             return {"state": "engaged", "skip": 0.6}   # 用户忙着/情绪化 → 少打扰
         # 回归欢迎窗 (NEKO: away回归60s强制greeting态, 压倒聊天态):
@@ -205,7 +197,6 @@ class UserActivity:
         self._msg_window.clear()
         self._len_window.clear()
         self.busy_until = 0.0
-        self.gaming_until = 0.0
 
     # ---- 持久化 (跨重启: 最近时间/追问/charge 不丢) ----
     def save(self):

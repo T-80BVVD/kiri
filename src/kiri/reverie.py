@@ -661,22 +661,7 @@ class ReverieEngine:
             if time.time() - self._last_goal_push_ts < GOAL_PUSH_COOLDOWN:
                 self.last_wander = time.time()
                 return
-            #  打游戏 (15%概率): 她可能选择去打一局OSU (训练好的模型真实打谱)
-            if random.random() < 0.15:
-                try:
-                    import osu_tools
-                    gresult, gfeel = osu_tools.play_and_reflect(k, share_prob=0.5)
-                    if gresult:
-                        result = f"打了「{gresult['beatmap']}」 acc {gresult['acc']*100:.0f}%"
-                        label = f"打OSU(acc {gresult['acc']*100:.0f}%)"
-                        zone = "game"
-                        self.last_wander_content = result
-                        k._log_event("wander", source="osu", label=label, zone="game",
-                                     result=f"acc={gresult['acc']*100:.0f}% combo={gresult['max_combo']}/{gresult['total_notes']}")
-                        self.last_wander = time.time()
-                        return
-                except Exception:
-                    pass
+            #  打游戏分支已移除 (osu 相关, 2026-08-29 清理)
             # ★ 找事做 (2026-08-21 雾弥: "主动性和主动找事情做还是大问题"):
             #   别只会刷视频 — 有概率去推进自己的目标 / 探索硬盘
             #   ★ 2026-08-21 雾弥: "想起来又去刷视频" — 有进行中的目标时,

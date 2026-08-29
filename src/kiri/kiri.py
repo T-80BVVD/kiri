@@ -1128,14 +1128,14 @@ class Kiri:
 
     def proactive_event(self, event_type, say, reason="event", min_gap_ratio=0.5):
         """★ 事件驱动主动 (NEKO吸纳): 任务完成等事件直接投递 (不走意愿分)
-        如打完OSU主动聊成绩; 仍受 睡眠硬禁 + 缩短的间隔(0.5×MIN_INTERVAL) + 活动门 约束
+        如任务完成主动聊; 仍受 睡眠硬禁 + 缩短的间隔(0.5×MIN_INTERVAL) + 活动门 约束
         2026-08-20: 2-7点深睡才禁, 23-2点允许 (事件=有理由开口)"""
         if config.NIGHT_SHARE_BLOCK and self.state.is_deep_sleeping():
             return False
-        # NEKO活动门: 生成中/打OSU时不投事件主动
+        # NEKO活动门: 生成中时不投事件主动
         try:
             snap = self.state.activity.snapshot(user=self.DEFAULT_USER)
-            if snap["state"] in ("busy", "gaming"):
+            if snap["state"] in ("busy",):
                 return False
         except Exception:
             pass
