@@ -76,11 +76,15 @@ class EmotionEvents:
             print(f"[emotion.record] 写入失败: {_e}", flush=True)
 
     def _prune(self):
-        """保留: 最近 retention_recent 条 + relevance≥阈值 的长留存 (按 id 去重)"""
+        """保留: 最近 retention_recent 条 + relevance≥阈值 的长留存 (按 id 去重)
+        ★ 2026-08-30 修复: 高相关性条目原本无时间上限, 而 refine_by_ids 会把
+          小模型事件 relevance 改写到 ≥0.6 → jsonl 无界增长。加 7 天上限。"""
+        now = time.time()
         self._events.sort(key=lambda e: e.get("ts", 0))
         recent = self._events[-self.retention_recent:] if self.retention_recent else self._events
         high = [e for e in self._events
-                if e.get("appraisal", {}).get("relevance", 0) >= self.retention_high_rel]
+                if e.get("appraisal", {}).get("relevance", 0) >= self.retention_high_rel
+                and now - float(e.get("ts", 0)) <= 7 * 86400]
         seen = {}
         for e in recent + high:
             seen[e.get("id", uuid.uuid4().hex)] = e

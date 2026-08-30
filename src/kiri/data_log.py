@@ -38,6 +38,9 @@ def _write(kind, **data):
 # ---- 完整对话样本 (数据集核心) ----
 def respond(sender, scene, input_text, output, mood=None, pleasure=None,
             boredom=None, latency=None, memories=None, tools=None, error=None):
+    # ★ 2026-08-30 修复: error 常是 Exception 实例, json.dumps 无法序列化 →
+    #   整行"出错样本"被 _write 静默丢弃 (数据集最该记的恰恰丢了)。统一 str 化。
+    error_s = str(error)[:200] if error else None
     _write("respond",
            sender=str(sender or "雾弥")[:30],
            scene=str(scene or "private"),
@@ -46,7 +49,7 @@ def respond(sender, scene, input_text, output, mood=None, pleasure=None,
            mood=mood, pleasure=pleasure, boredom=boredom, latency=latency,
            memories=[str(m)[:80] for m in (memories or [])],
            tools=[str(t)[:60] for t in (tools or [])],
-           error=error)
+           error=error_s)
 
 
 # ---- 内心独白 (与respond同session, 导出时关联) ----

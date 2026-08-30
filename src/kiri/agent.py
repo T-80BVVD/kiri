@@ -363,7 +363,12 @@ class AgentLoop:
             # ★ 效率优化①: 重复目标检测 — 同一文件/目录访问≥2次 → 提示已看过
             target_counts = {}
             for t in context:
-                key = str(t.get("args", {}).get("path", "") or t.get("args", {}).get("keyword", ""))
+                # ★ 2026-08-30 修复: args 可能是字符串 (LLM 输出 {"args": "北京"}),
+                #   t.get("args", {}).get(...) 会 AttributeError → run() 崩溃丢全部进度
+                t_args = t.get("args")
+                if not isinstance(t_args, dict):
+                    t_args = {}
+                key = str(t_args.get("path", "") or t_args.get("keyword", ""))
                 if key and len(key) > 3:
                     target_counts[key] = target_counts.get(key, 0) + 1
             repeated = [k for k, v in target_counts.items() if v >= 2]
@@ -379,8 +384,16 @@ class AgentLoop:
                                   + "」三次了，没有新发现。换个工具或直接行动/回复"
                                   "——同样的方法再试不会有新结果。\n")
             explore_count = len(context)
+            # ★ 软保险丝 (2026-08-27): 连续纯 think 无进展 → 注入"别想了直接说"
+            # ★ 2026-08-30 修复: 原实现把提示 append 到 decision_p 是在当轮决策生成
+            #   _之后_ (dead code, 下一轮 382 行重建 prompt 时丢失, 从未到达模型);
+            #   改为在构建决策 prompt 前合并进 repeat_hint, 真正注入。
+            think_note = ""
+            if getattr(self, "_think_streak", 0) >= 3:
+                think_note = ("\n[注意] 你已经想了好几轮了, 别再想下去了。"
+                              "★直接 <speak> 回应对方 (闲聊就轻松说一句), 或 <think>{action:call...}</think> 调工具。")
             decision_p = self._decision_prompt(user_text, ctx_text, explore_count,
-                                               repeat_hint=repeat_note + same_tool_note)
+                                               repeat_hint=repeat_note + same_tool_note + think_note)
             for _attempt in range(2):
                 decision, raw = self._stream_decision(sys_p, decision_p)
                 if decision:
@@ -418,11 +431,8 @@ class AgentLoop:
             if action == "think":
                 # ★ v2 think/speak: 只有 think 无动作 → 她还在内部想, 还没决定说话/调工具
                 #   不外发, 继续下一轮决策 (有探索压力/时间预算兜底防死循环)
-                # ★ 软保险丝 (2026-08-27): 连续纯 think 无进展 → 注入"别想了直接说" (治 think 溢出)
+                # ★ 软保险丝计数: streak>=3 的"别想了直接说"提示已在决策 prompt 构建时注入
                 self._think_streak = getattr(self, "_think_streak", 0) + 1
-                if self._think_streak >= 3:
-                    decision_p += ("\n[注意] 你已经想了好几轮了, 别再想下去了。"
-                                   "★直接 <speak> 回应对方 (闲聊就轻松说一句), 或 <think>{action:call...}</think> 调工具。")
                 if self._think_streak >= 5:
                     # 强制收尾: 直接生成回复 (不再进入决策循环)
                     all_info = "\n".join(summary_lines) + "\n" + "\n".join(
@@ -585,19 +595,26 @@ class AgentLoop:
             pass
 
     def _resolve_plans(self, tool, args, result):
-        """计划完成检查: 执行了"读/查/看"类工具后, 匹配的计划视为完成
-        简化规则: 计划目标里含"读/查/看/找"且这次工具是 read_file/look_around/
-        find_file/search/bili/weather 等探索类 → 移除该计划"""
+        """计划完成检查: 执行了与计划目标对应的工具后, 匹配的计划视为完成
+        ★ 2026-08-30 修复: 原只认"读/查/看/找"目标 + 只读工具 — "修/写/做"类计划
+           (修复工作流正在引导的) 永不完成, reply 被永久拦截到轮数耗尽。
+           扩展: 写/修类目标在调用 create_tool/run_code 后视为完成。"""
         if not self.pending_plans:
             return
         done_goal = None
+        write_tools = ("create_tool", "run_code", "list_creations")
         for p in self.pending_plans:
             goal = p["goal"]
-            # 计划是"读/查XX", 且确实调了读取类工具 → 完成
+            # 计划是"读/查/看/找XX", 且确实调了读取类工具 → 完成
             if any(k in goal for k in ("读", "查", "看", "找")):
                 if tool in ("read_file", "look_around", "find_file", "search",
                             "bili_search", "weather", "ask_ai", "self_discover",
                             "memory_recall", "emotion_state", "state_status"):
+                    done_goal = p["goal"]
+                    break
+            # 计划是"修/写/做/改/研究XX" → 真动手(写工具/跑代码)后视为完成
+            elif any(k in goal for k in ("修", "写", "做", "改", "研究", "试", "弄", "搞")):
+                if tool in write_tools:
                     done_goal = p["goal"]
                     break
         if done_goal:

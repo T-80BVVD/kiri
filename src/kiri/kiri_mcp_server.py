@@ -634,6 +634,45 @@ def _safe_creation_path(path):
         return None
 
 
+# ---- 2026-08-30 安全加固: 创作区代码的 AST 静态检查 ----
+# 背景: 原 create_tool 用字面黑名单 (["os.remove", "subprocess", ...]), 可被
+#   getattr(__import__('os'),'system') / Path.unlink() 一行绕过; 且 run_code 对
+#   @mcp.tool 文件走"进程内 exec" + 启动时自动 exec 全部 my_creations → 完整 RCE 链。
+# 现在: ① AST 静态检查危险 import/调用 (启发式, 挡常见武器) ② run_code 不再进程内
+#   exec, 统一 subprocess 沙箱运行 (独立进程 + 20s 超时) ③ 启动加载同样过安全检查。
+#   说明: 这是"合理防护", 不是 OS 级沙箱 — open() 仍可读写任意文件 (她写工具需要),
+#   开源部署若担心, 建议把 Kiri 放进受限系统账户/容器。
+_DANGER_IMPORTS = ("subprocess", "shutil", "socket", "ctypes", "pickle", "importlib",
+                   "multiprocessing", "requests", "urllib")
+_DANGER_CALLS = ("system", "popen", "remove", "rmtree", "unlink", "eval", "exec",
+                 "__import__", "Popen", "check_output", "check_call", "getoutput",
+                 "shell", "kill")
+
+
+def _danger_in_code(code):
+    """AST 静态检查: 命中危险 import/调用 → 返回描述文本; 无 → None
+    语法错误不拦截 (她要修的可能是语法错), 只拦危险操作"""
+    try:
+        import ast
+        tree = ast.parse(str(code))
+    except SyntaxError:
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name.split(".")[0] in _DANGER_IMPORTS:
+                    return f"导入危险模块 {a.name}"
+        elif isinstance(node, ast.ImportFrom):
+            if (node.module or "").split(".")[0] in _DANGER_IMPORTS:
+                return f"导入危险模块 {node.module}"
+        elif isinstance(node, ast.Call):
+            f = node.func
+            name = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else "")
+            if name in _DANGER_CALLS:
+                return f"调用危险函数 {name}"
+    return None
+
+
 @mcp.tool()
 def create_tool(name: str, code: str = "", mode: str = "write") -> str:
     """写一个你自己的MCP工具 (自己动手做东西!)。分步写防超长:
@@ -651,13 +690,19 @@ def create_tool(name: str, code: str = "", mode: str = "write") -> str:
             return "(只能写在 my_creations/ 目录里, 不能碰核心代码)"
         if not name.endswith(".py"):
             return "(文件名要以 .py 结尾)"
-        # 基本安全: 拒绝明显危险的代码
+        # 基本安全: AST 静态检查危险操作 (2026-08-30 取代字面黑名单 — 原黑名单可一行绕过)
         code = str(code or "")
-        danger = ["os.remove", "shutil.rmtree", "subprocess", "os.system", "eval(",
-                  "exec(", "import sys; sys.exit", "os.popen", "pathlib.*unlink"]
-        for d in danger:
-            if d in code:
-                return f"(这个代码里有危险操作({d}), 不能写)"
+        if mode == "append" and os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8", errors="replace") as _f:
+                    full_code = _f.read() + "\n" + code
+            except Exception:
+                full_code = code
+        else:
+            full_code = code
+        danger = _danger_in_code(full_code)
+        if danger:
+            return f"(这个代码里有危险操作({danger}), 不能写)"
         os.makedirs(CREATIONS_DIR, exist_ok=True)
         mode = str(mode or "write").strip().lower()
         if mode == "append" and os.path.exists(p):
@@ -676,69 +721,10 @@ def create_tool(name: str, code: str = "", mode: str = "write") -> str:
         return f"(写工具失败: {e})"
 
 
-def _run_creation_tool(p, src, args):
-    """加载创作工具文件并调用第一个 def 函数 (运行中进程内验证, 不用等重启)
-    ★ stdout 重定向: MCP stdio 协议走 stdout, 工具函数里的 print 会污染协议 → 收进输出"""
-    import io as _io
-    import ast as _ast
-    import contextlib
-    import importlib.util
-    # 自动补 import (她可能只写了 @mcp.tool)
-    if "from kiri_mcp_server import mcp" not in src and "import mcp" not in src:
-        src = "from kiri_mcp_server import mcp\n" + src
-    name = "kiri_creation_test_" + os.path.splitext(os.path.basename(p))[0]
-    spec = importlib.util.spec_from_file_location(name, p)
-    mod = importlib.util.module_from_spec(spec)
-    try:
-        code_obj = compile(src, p, "exec")
-        exec(code_obj, mod.__dict__)
-    except Exception as e:
-        return f"(加载失败, 语法或导入出错: {type(e).__name__}: {e})"
-    try:
-        tree = _ast.parse(open(p, "r", encoding="utf-8", errors="replace").read())
-        def_names = [n.name for n in tree.body if isinstance(n, _ast.FunctionDef)]
-    except Exception:
-        def_names = []
-    if not def_names:
-        return "(这个文件里没有 def 函数, 写个函数才能调用)"
-    fn = mod.__dict__.get(def_names[0])
-    if not callable(fn):
-        return f"(函数 {def_names[0]} 不可调用)"
-    # 解析参数: 先试 JSON kwargs, 再试 key=value, 最后空格位置参数
-    kwargs = {}
-    posargs = []
-    try:
-        a = str(args or "").strip()
-        if a:
-            if a.startswith("{"):
-                kwargs = json.loads(a)
-            elif "=" in a:
-                for part in a.split():
-                    if "=" in part:
-                        k, v = part.split("=", 1)
-                        kwargs[k.strip()] = v.strip()
-                    else:
-                        posargs.append(part)
-            else:
-                posargs = a.split()
-    except Exception:
-        posargs = str(args or "").split()
-    buf = _io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        try:
-            result = fn(*posargs, **kwargs)
-        except Exception as e:
-            return f"(调用报错: {type(e).__name__}: {e})"
-    out = buf.getvalue()
-    rtext = str(result) if result is not None else "(无返回值)"
-    tail = f"\n函数输出:\n{out}" if out.strip() else ""
-    return f"(工具函数 {def_names[0]} 调用成功, 已加载进当前会话)\n{rtext[:800]}{tail}"
-
-
 @mcp.tool()
 def run_code(path: str, args: str = "") -> str:
     """运行你写的代码 (测试, 看能不能跑)。path=my_creations里的文件, args=可选参数。
-    工具文件(含@mcp.tool装饰)会加载并直接调用函数看结果, 不用等重启; 普通脚本沙箱运行。
+    统一在独立子进程沙箱运行 (20秒超时), 不会污染 Kiri 主进程;
     输出会显示运行结果或报错 — 写错了能看到哪里崩, 自己修。"""
     try:
         p = _safe_creation_path(path)
@@ -748,10 +734,9 @@ def run_code(path: str, args: str = "") -> str:
             return f"({path} 不存在)"
         with open(p, "r", encoding="utf-8", errors="replace") as f:
             src = f.read()
-        # 工具文件 (含 @mcp.tool): 进程内加载 + 调用第一个工具函数
-        if "@mcp.tool" in src:
-            return _run_creation_tool(p, src, str(args or ""))
-        # 普通脚本: 沙箱 subprocess 运行
+        # ★ 2026-08-30 安全加固: 原 @mcp.tool 文件走"进程内 exec" (任意代码执行链),
+        #   现在统一 subprocess 沙箱运行 (独立进程 + 20s 超时 + 加载失败可反馈)。
+        #   副作用: 不再"加载进当前会话" — 工具函数效果需重启后正式生效 (见 create_tool 说明)。
         import subprocess
         import sys as _sys
         r = subprocess.run([_sys.executable, p] + str(args).split(),
@@ -760,7 +745,7 @@ def run_code(path: str, args: str = "") -> str:
         out = (r.stdout or "")[:1500]
         err = (r.stderr or "")[:1500]
         if r.returncode == 0:
-            return f"(运行成功)\n{out}"
+            return f"(运行成功 — 代码加载/执行无报错)\n{out}"
         return f"(运行出错, 退出码{r.returncode})\n{out}\n{err}"
     except subprocess.TimeoutExpired:
         return "(运行超时(20秒) — 可能死循环了, 检查你的代码)"
@@ -801,6 +786,13 @@ if __name__ == "__main__":
                     # ★ 自动补全: 创作文件可能漏写 import (她只写了 @mcp.tool), 加载前注入
                     with open(f, "r", encoding="utf-8", errors="replace") as _fh:
                         src = _fh.read()
+                    # ★ 2026-08-30 安全加固: 启动自动 exec 是 RCE 链一环 —
+                    #   先过 AST 安全检查, 危险创作跳过不加载 (防"写进创作区即持久化执行")
+                    _danger = _danger_in_code(src)
+                    if _danger:
+                        print(f"[mcp] 创作 {os.path.basename(f)} 含危险操作({_danger}), 跳过加载",
+                              file=_sys.stderr, flush=True)
+                        continue
                     if "from kiri_mcp_server import mcp" not in src and "import mcp" not in src:
                         src = "from kiri_mcp_server import mcp\n" + src
                     spec = importlib.util.spec_from_file_location(name, f)

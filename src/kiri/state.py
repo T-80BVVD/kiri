@@ -171,8 +171,12 @@ class State:
             pass  # 主动后短暂抑制
         else:
             # 长时间沉默额外加无聊
+            # ★ 2026-08-30 修复: 原 +0.002/tick ≈ 0.48/小时 (基准的5倍),
+            #   配合 want_score 阈值 0.18 → 白天空闲每30-75分钟主动一次 (轰炸复发)。
+            #   降到 0.0005/tick ≈ 0.12/小时: 沉默1-2小时只小涨, 触发由 silence 项主导,
+            #   间隔回到 ~2-4 小时 (更像人, 不至于闹钟式轰炸)。
             if silence > 60:
-                self.boredom = min(1.0, self.boredom + 0.002)
+                self.boredom = min(1.0, self.boredom + config.BOREDOM_SILENCE_RISE_PER_TICK)
 
         # 记忆涌现(glow)
         if self.memory_glow <= 0 and self.rng.random() < config.MEMORY_GLOW_PROB:
@@ -188,6 +192,10 @@ class State:
         self.last_interact = time.time()
         if text.strip().startswith(config.STOP_WORD):
             self.stopped = True
+        elif self.stopped:
+            # ★ 2026-08-30 修复: 原实现"停"后永久静默 (无任何恢复路径, 跨重启也禁言)。
+            #   现在: "停"之后的任何正常消息解除静默 (用户重新开口 = 允许她恢复主动)。
+            self.stopped = False
         # ★ 更新社交关系 (多用户: 和谁说话就更新谁的关系)
         who = user or "雾弥"
         try:

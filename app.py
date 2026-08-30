@@ -455,6 +455,16 @@ def daemon_loop():
                 kiri.state.save()
             except Exception:
                 pass
+            # ★ 2026-08-30 修复: anti_repeat(防复读语料) / mood_profile(用户情绪画像)
+            #   有 save 接口但从未被调用 → 重启全丢。与 state 一起周期落盘。
+            try:
+                kiri.anti_repeat.save()
+            except Exception:
+                pass
+            try:
+                kiri.state.mood_profile.save()
+            except Exception:
+                pass
         time.sleep(0.5)
 
 

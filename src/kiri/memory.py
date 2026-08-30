@@ -202,6 +202,9 @@ class Memory:
         ★ P1-2: 临时/不确定标记 (uncertain); P1-3: 幂等去重 (同文本hash跳过)"""
         # ★ P1-3 幂等去重 (2026-08-22 移植 NachoBot external_id): 完全相同文本跳过
         #   (QQ消息重复投递/同轮多次编码 → 同一条不存两遍)
+        # ★ 2026-08-30 修复: 去重只拦"同层"重复 — 短期(session)/长期(global) 是同一事实的
+        #   两个分层 (短期可遗忘, 长期保留), 互不挡。修复 kiri.py 长期记忆分支被
+        #   hash 去重静默挡掉、重要事实永远进不了长期库的问题。
         # ★ P1-4 写锁 (并发写 chromadb 防冲突)
         with self._write_lock:
             try:
@@ -210,7 +213,14 @@ class Memory:
                 event_hash = _hl.md5(str(event)[:300].encode("utf-8", errors="ignore")).hexdigest()
                 dup = col0.get(where={"hash": event_hash}, limit=1)
                 if dup and dup.get("ids"):
-                    return
+                    ex_m = (dup.get("metadatas") or [{}])[0] or {}
+                    ex_sess = ex_m.get("session")
+                    new_sess = session or "global"
+                    if ex_sess == new_sess:
+                        return                      # 同层重复 → 跳过
+                    if ex_sess in (None, "global") and new_sess == "global":
+                        return                      # 都是长期 → 跳过
+                    # 短期 vs 长期 → 允许各存一份 (不 return, 继续写入)
             except Exception:
                 event_hash = ""
         mood = 0.0
@@ -351,7 +361,9 @@ class Memory:
         if col.count() == 0:
             return []
         # ★ P1-4 检索缓存 (同 query 5s 内去重, 并发重复查询合并)
-        cache_key = (user, query_text)
+        # ★ 2026-08-30: 缓存键加入 n — 原 (user, query) 相同时, n=4 缓存会让
+        #   5 秒内的 n=8 调用只返回 4 条。
+        cache_key = (user, query_text, n)
         cached = self._retrieve_cache.get(cache_key)
         if cached and time.time() - cached[0] < 5:
             return cached[1]
@@ -699,8 +711,12 @@ class Memory:
         if not cands:
             return 0
         marked = self._arbitrate_corrections(event, cands)
+        # ★ 2026-08-30 修复: 原降级是 marked = cands (全部标记 corrected),
+        #   触发场景: _is_correction 命中日常高频词("其实我/并不/才没有") +
+        #   LLM 仲裁失败/超时 → 最多6条相似记忆被静默标 corrected, 从此不召回。
+        #   降级策略改为"标记空集" — 宁可不纠正, 不可误杀记忆。
         if marked is None:
-            marked = cands   # 降级: 全部标记 (旧行为)
+            marked = []
         n = 0
         for c in marked:
             m = dict(c["meta"])

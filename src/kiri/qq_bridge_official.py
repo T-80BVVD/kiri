@@ -189,9 +189,14 @@ class QQBridgeOfficial:
 
     # ---------- 主循环 ----------
     async def run(self):
-        """连接网关 → 鉴权 → 心跳 → 处理事件 (断线按退避重连, 短断 Resume 补发)"""
+        """连接网关 → 鉴权 → 心跳 → 处理事件 (断线按退避重连; 短断 Resume, session失效降级 Identify)
+        ★ 2026-08-30 修复: 原 last_session 只在 except 置 True、从不复位 —
+          任意一次异常后所有重连永远走 op6 Resume, session 失效时死循环, bot 永久离线。
+          改为实例属性 _resume_ok: 仅当上次连接真的建立过会话(READY/RESUMED)才 Resume;
+          收到 op9(INVALID_SESSION) 时降级清空, 下次全新建连 Identify。"""
         attempt = 0
-        last_session = None
+        self._resume_ok = False
+        self._session_id = ""
         while True:
             try:
                 url = await self._get_gateway_url()
@@ -202,8 +207,8 @@ class QQBridgeOfficial:
                 async with websockets.connect(url, max_size=None) as ws:
                     self.ws = ws
                     attempt = 0
-                    # 短断重连: 有 session → Resume 补发; 否则 Identify
-                    if last_session:
+                    # 短断重连: 有有效会话 → Resume 补发; 否则 Identify (全新建连)
+                    if self._resume_ok and self._session_id:
                         await self._send_json({"op": 6, "d": {
                             "token": f"QQBot {self.tokens.get()}",
                             "session_id": self._session_id, "seq": self._seq}})
@@ -217,7 +222,7 @@ class QQBridgeOfficial:
                     await self._event_loop(ws)
             except Exception as e:
                 self._log_bridge(f"连接异常: {e}")
-                last_session = True   # 短断尝试 Resume
+                self._resume_ok = True   # 断线: 会话可能还有效, 下次尝试 Resume
             finally:
                 self.ws = None
                 self.online = False
@@ -263,11 +268,18 @@ class QQBridgeOfficial:
                 if t == "READY":
                     d = msg.get("d", {})
                     self._session_id = d.get("session_id", "")
+                    self._resume_ok = True   # ★ 全新建连成功 → 后续短断可 Resume
                     self._log_bridge(f"鉴权成功 session={self._session_id[:8]}...")
                 elif t == "RESUMED":
+                    self._resume_ok = True   # ★ Resume 成功 → 会话仍有效
                     self._log_bridge("连接已恢复 (补发完成)")
                 else:
                     self._handle_dispatch(t, msg.get("d", {}))
+            elif op == 9:   # INVALID_SESSION: session 已失效 → 降级, 下次全新建连
+                self._log_bridge("session 已失效, 下次全新建连 (Identify)")
+                self._resume_ok = False
+                self._session_id = ""
+                return
             elif op == 7:   # Reconnect
                 self._log_bridge("服务端要求重连")
                 return

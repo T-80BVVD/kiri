@@ -280,8 +280,16 @@ class Kiri:
                 if u and u != self.DEFAULT_USER and str(u) in str(text):
                     found.append(u)
             # 群消息里的名字
+            # ★ 2026-08-30 修复: 原正则 {2,4} 贪婪吞掉"说"字 ("雾弥说："→捕获"雾弥说")
+            #   → 垃圾"用户名"污染记忆 related 标签。捕获后剥掉"说/问/叫"并过滤代词。
             import re
-            for name in re.findall(r'@?([\u4e00-\u9fff]{2,4})(?=说|:|：|,|，|\s|$)', str(text)):
+            for m in re.finditer(r'@?([\u4e00-\u9fff]{2,4})(?=说|[:：]|[,，]|\s|$)', str(text)):
+                name = m.group(1)
+                if name.endswith(("说", "问", "叫")):
+                    name = name[:-1]
+                if len(name) < 2 or name in ("他说", "你说", "她说", "谁说", "他们",
+                                             "你们", "我们", "别人"):
+                    continue
                 if name not in found:
                     found.append(name)
             return found[:3]
@@ -531,8 +539,12 @@ class Kiri:
                 _ev_user = self.emotion_events.record(
                     emotion_events_mod.SRC_USER, user_text[:100],
                     relationship=rel,
+                    # ★ 2026-08-30 修复: 传入 LLM 情绪 (valence) — 原只传 intensity/
+                    #   silence_min, rule_appraise 里 sentiment=None → 全靠13+16关键词,
+                    #   规则未命中的情绪消息被静默丢弃 (如"太好了!!!"类表达)。
                     extra={"intensity": 0.5 + abs(senti or 0) * 0.3,
-                           "silence_min": silence_min},
+                           "silence_min": silence_min,
+                           "sentiment": senti},
                     fast=True)
                 if _ev_user:
                     _emotion_event_ids.append(_ev_user["id"])
@@ -612,10 +624,11 @@ class Kiri:
         user_p = prompt_mod.respond_user(dlg, user_text, user=user, group_context=group_context)
         # ★ NEKO external_intent吸收: 需要外部信息时, 提示她必须用工具 (治"你自己看")
         #   不强制调工具, 只提高她主动用 [TOOL:] 的概率; 工具路径仍走 tool_registry
+        # ★ 2026-08-30 清理: TOOL_NUDGE 原本定义在下面一行, 与这里重复两份文本 — 统一为常量
+        TOOL_NUDGE = ("[重要] 这个问题需要实时/外部信息，务必用 [TOOL:...] 查一下再回答，"
+                      "不要凭旧知识硬答，也不要只说'你自己看'。")
         if llm_emo and llm_emo.get("external_intent", 0.0) >= 0.7:
-            user_p += ("\n[重要] 这个问题需要实时/外部信息，务必用 [TOOL:...] 查一下再回答，"
-                       "不要凭旧知识硬答，也不要只说'你自己看'。")
-        TOOL_NUDGE = "[重要] 这个问题需要实时/外部信息，务必用 [TOOL:...] 查一下再回答，不要凭旧知识硬答，也不要只说'你自己看'。"
+            user_p += TOOL_NUDGE
         # ★ agent 模式 (agent-rewrite 分支): LLM 自主决策调工具, 而非 [TOOL:] 标记事后解析
         #   agent 失败/异常 → 回退旧逻辑 (新架构不稳定时她还能正常聊天)
         AGENT_MODE = True
@@ -661,7 +674,9 @@ class Kiri:
                 #   agent 完全自主: 想探索就探索(防死循环靠打转检测), 想回复就回复
                 #   need_deep 不再由"调了工具"触发, 而由 agent 的回复内容判定:
                 #   她如果回复"我还在查/需要深挖"才转后台; 正常探索后直接 reply 就回复
-                agent_reply = agent_loop.run(agent_input, max_rounds=1000, on_reply_token=on_reply_token)   # ≈不限轮数, 靠打转检测
+                agent_reply = agent_loop.run(agent_input, max_rounds=1000,
+                                             max_seconds=300,   # ★ 2026-08-30: 探索时间上限 5 分钟, 超时返回"我还在查"转后台 (防 respond 无限阻塞)
+                                             on_reply_token=on_reply_token)   # ≈不限轮数, 靠打转检测
                 # ★ 承诺→惦记 (2026-08-21 雾弥: 她说'回头我写个工具'却从不行动 — 治本:
                 #   把她说的话静默记成目标, 联想时会自然想起, 不打断对话不强制)
                 try:
@@ -712,7 +727,10 @@ class Kiri:
                 self._log_event("agent_fallback", error=agent_error[:200], user=user)
         try:
             # temperature 0.7: 保持人格生动, 但比默认0.85稳 (考记忆/归因类问题不飘)
-            if not agent_reply:
+            # ★ 2026-08-30 修复: agent_reply 为 "(引擎错误…" 这类 truthy 文本时,
+            #   "not agent_reply" 不成立 → reply 从未赋值 → 后面 UnboundLocalError。
+            #   统一用 agent_error 判定是否回退旧引擎 (agent 失败/异常/空回复都走这里)。
+            if agent_error or not agent_reply:
                 reply = engine.generate(sys_p, user_p, temperature=0.7)
                 # ★ 防空回复: API偶发返回空内容 → 重试一次
                 if not reply or not reply.strip():
@@ -752,8 +770,10 @@ class Kiri:
                     reply2 = engine.generate(sys_p, user_p2, max_tokens=600)
                     reply2 = reply2.strip()
                     # ★ 修复: 引擎空回复标记 (……) 不算有效回复
+                    # ★ 2026-08-30: 去掉 `or reply2` — 若 reply2 整条就是 [TOOL:...],
+                    #   剥离后为空, 原逻辑会把裸标记文本赋回发给用户; 现在置空走降级路径
                     if reply2 and not reply2.startswith("(……"):
-                        reply = re.sub(r'\[TOOL:[^\]]*\]\s*', '', reply2).strip() or reply2
+                        reply = re.sub(r'\[TOOL:[^\]]*\]\s*', '', reply2).strip()
                 else:
                     # ★ 工具重试后仍无效 → 引导诊断 (2026-08-20): 不只"换方式/直接答",
                     #   给她诊断选项: 查自己的代码找原因 (负责任排查, 不是反复要工具)
@@ -770,7 +790,8 @@ class Kiri:
                     reply2 = reply2.strip()
                     if reply2 and not reply2.startswith("(……"):
                         # 保留她想说的 (含'我查查'这类自然表达); 工具标记剥掉(单轮只执行一次工具)
-                        reply = re.sub(r'\[TOOL:[^\]]*\]\s*', '', reply2).strip() or reply2
+                        # ★ 2026-08-30: 去掉 `or reply2` — 剥离后为空则置空走降级, 不发裸标记
+                        reply = re.sub(r'\[TOOL:[^\]]*\]\s*', '', reply2).strip()
                     else:
                         reply = ""
         except Exception:
@@ -934,9 +955,11 @@ class Kiri:
         # 兼容: 失败消息可能以工具名开头 (如"天气获取失败")
         if t.startswith(bad):
             return True
-        # 更宽松: 含"获取失败/执行失败/查询失败/无结果/没找到"等失败信号
+        # 更宽松: 含"获取失败/执行失败/查询失败"等失败信号
+        # ★ 2026-08-30: 移除"没结果/没有搜到" — 与 docstring 自相矛盾
+        #   ("没找到/没结果" 是诚实的空结果, 工具工作正常, 不算无效)
         for sig in ("获取失败", "执行失败", "查询失败", "搜索失败", "请求失败",
-                    "连接失败", "无法访问", "获取不到", "没有搜到", "没结果"):
+                    "连接失败", "无法访问", "获取不到"):
             if sig in t:
                 return True
         return False

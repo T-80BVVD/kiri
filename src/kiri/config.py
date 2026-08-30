@@ -43,6 +43,7 @@ EMOTION_REFINE_AFTER_REPLY = True     # ★ 阉割版 (2026-08-27): 回复生成
                                       #   True = 入口规则即时 + 事后补评; False = 完全规则 (彻底阉割, 零小模型)
 TICK_SECONDS = 15                   # 状态检查间隔(秒)
 BOREDOM_RISE_PER_TICK = 0.0004      # ★ 每tick无聊度上升 (修正: 0.02是错的时间尺度, 实际4.8/小时11分钟就顶; 0.0004≈0.1/小时, 1.6h开始无聊6h相当无聊)
+BOREDOM_SILENCE_RISE_PER_TICK = 0.0005  # ★ 2026-08-30: 沉默>60min 后的额外无聊上升 (原0.002≈0.48/h 是基准5倍 → 主动轰炸; 0.0005≈0.12/h)
 BOREDOM_RELIEF = 0.15               # 互动后无聊度下降
 MOOD_REGRESSION = 0.02              # 情绪回归基线
 

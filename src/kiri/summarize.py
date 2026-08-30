@@ -108,11 +108,15 @@ def summarize(date_str=None, kiri=None):
         f.write(header + summary + "\n")
 
     # 摘要入记忆 (她记得今天)
+    # ★ 2026-08-30 修复: 原实现未传 speaker, 默认 speaker="user" → 回顾被标成
+    #   "用户亲口说的事实"(最高可信度) 出现在后续所有 memory_block 里,
+    #   正是系统在 prompt 层严防的"自我生成内容伪装成用户事实"。改为 kiri。
     try:
         if kiri is None:
             import kiri as kiri_mod
             kiri = kiri_mod.Kiri()
-        kiri.memory.encode(f"[回顾 {date_str}] {summary[:200]}", kiri.state.emotion.state)
+        kiri.memory.encode(f"[回顾 {date_str}] {summary[:200]}", kiri.state.emotion.state,
+                           speaker="kiri")
     except Exception:
         pass
 

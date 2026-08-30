@@ -38,28 +38,35 @@ def get_tool_calls(n=30):
     return list(_CALLS[-n:])
 
 
-async def _call(name, args):
+async def _call(name, args, timeout=30):
+    """单次工具调用: stdio 起连接 → initialize → call_tool
+    ★ 2026-08-30: 全部套 asyncio.wait_for 超时 — 服务器卡死(如 run_code 死循环)
+      时不再让 Kiri 主线程永久挂死 (超时后返回 None, 调用方降级)"""
     params = StdioServerParameters(command=sys.executable, args=[MCP_SERVER])
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
-            await session.initialize()
-            r = await session.call_tool(name, args or {})
+            await asyncio.wait_for(session.initialize(), timeout=timeout)
+            r = await asyncio.wait_for(session.call_tool(name, args or {}), timeout=timeout)
             if r and r.content:
                 parts = [c.text for c in r.content if hasattr(c, "text")]
                 return "\n".join(parts) if parts else None
     return None
 
 
-def call_tool(name, args=None):
-    """同步调用 MCP 工具; 失败返回 None (不阻塞Kiri主流程异常)
-    每次调用: 内存记录(监控面板) + events.jsonl落盘(永久日志)"""
+def call_tool(name, args=None, timeout=30):
+    """同步调用 MCP 工具; 失败/超时返回 None (不阻塞Kiri主流程异常)
+    每次调用: 内存记录(监控面板) + events.jsonl落盘(永久日志)
+    ★ 2026-08-30: 新增 timeout 参数 (默认30s), 超时返回"(工具超时...)"提示"""
     args = args or {}
     t0 = time.time()
     ok = False
     result = None
     try:
-        result = asyncio.run(_call(name, args))
+        result = asyncio.run(_call(name, args, timeout=timeout))
         ok = result is not None
+    except asyncio.TimeoutError:
+        result = f"(工具超时: {name} 超过{timeout}s 无响应，已放弃)"
+        ok = False
     except Exception:
         result = None
     finally:
