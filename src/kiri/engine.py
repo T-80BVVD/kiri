@@ -78,7 +78,13 @@ def _account_usage(raw):
 
 
 def _read_key():
-    p = os.path.expanduser(r"~\.dsh\.credentials.yaml")
+    """DeepSeek key 读取: 环境变量 DEEPSEEK_API_KEY 优先 (开源标准);
+    回退本地凭据文件 (config.DSH_CREDENTIALS_PATH, 默认 ~/.dsh/.credentials.yaml 开发用)
+    ★ 2026-08-30 开源适配: 路径可配置, 环境变量优先 — 别人 clone 后只需设环境变量"""
+    key = os.environ.get("DEEPSEEK_API_KEY")
+    if key:
+        return key.strip().strip("'\"")
+    p = getattr(config, "DSH_CREDENTIALS_PATH", os.path.expanduser(r"~\.dsh\.credentials.yaml"))
     try:
         with open(p, "r", encoding="utf-8") as f:
             for line in f.read().splitlines():
@@ -88,7 +94,7 @@ def _read_key():
                         return v
     except OSError:
         pass
-    return os.environ.get("DEEPSEEK_API_KEY")
+    return None
 
 
 def _call_api(system, user, max_tokens, temperature):

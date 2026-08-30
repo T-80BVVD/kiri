@@ -14,7 +14,7 @@ import chromadb
 from transformers import AutoModel, AutoTokenizer
 import config
 
-BGE_PATH = r"D:\models\bge-small-zh-v1.5"
+BGE_PATH = config.BGE_MODEL_PATH   # ★ 2026-08-30 开源适配: 改由 config 读取 (环境变量 KIRI_BGE_PATH 可覆盖)
 DB_PATH = os.path.join(os.path.dirname(__file__), "mem_db")
 
 

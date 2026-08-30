@@ -20,35 +20,17 @@ import engine
 import prompt as prompt_mod
 import config as config_mod
 
-# 配置 (可在 config.py 覆盖)
-REVERIE_INTERVAL_SECONDS = 600   #  联想降频: 每10分钟一次 (内省为辅)
-REVERIE_ROUNDS = 2               #  联想轮数减到2 (更短更精, 少空想)
-REVERIE_SALIENCE_THRESHOLD = 0.5  # 念头重要度>=此值写入长期记忆
-RECENT_CHEWED_MAX = 20           # 近期嚼过记忆清单长度(防死循环)
-REVERIE_MIN_SILENCE_MIN = 2      # 雾弥沉默>=2分钟才走神 (聊天时专注对话, 沉默时她才"自己在想")
-CURIOSITY_EVERY = 3              # 每3次联想触发一次"好奇→查→学"
-CURIOSITY_SEARCH_N = 2           # 每次好奇搜几条
-CURIOSITY_MAX_ROUNDS = 3         # agentic好奇: 最多几轮工具调用 (执行→评估→停/换词/放弃)
-
-#  世界漫游 (行动为主): 空闲时刷B站/知乎日报/少数派/天气/搜索, 外部输入→记忆→分享
-WANDER_INTERVAL_SECONDS = 600    # 每10分钟一次漫游 (对外求索)
-WANDER_SOURCES = ["bili_hot", "bili_search", "zhihu_daily", "sspai_feed", "weather", "search"]
-WANDER_SHARE_PROB = 0.6          # 漫游到内容 → 生成分享句的概率 (审查后发群)
-#  偏好圈 (她主要刷这些): 知识/技术/情感(生活)/游戏/鬼畜 — 80%权重, 其他20%防污染
-WANDER_PREF_ZONES = ["知识", "数码", "生活", "游戏", "鬼畜"]
-WANDER_PREF_WEIGHT = 0.8         # 刷偏好圈的概率 (其余20%刷全站热门/日报/博客/天气/搜索)
-WANDER_OTHER_WEIGHT = 0.2        # 防污染: 其他内容低频, 但允许少量接触
-#  反思深挖 (2026-08-19 雾弥提议): 刷到内容 → 判断是否真感兴趣 → 感兴趣就深挖相关视频
-DEEPEN_INTEREST_PROB = 0.5       # 内容判定为"感兴趣"后, 触发深挖的概率 (别每次都挖)
-DEEPEN_COOLDOWN = 20 * 60        # 深挖冷却: 20分钟一次 (防刷屏/烧API)
-DEEPEN_MIN_SALIENCE = 0.3        # 感兴趣置信度门槛 (LLM返回的 interested_score)
-
-# ★ 找事做 (2026-08-21 雾弥: "主动性和主动找事情做还是大问题"):
-#   漫游不只会刷视频 — 有概率去"做事": 推进自己的目标 / 探索硬盘
-#   用户原话: "实在闲着没事干 少刷点视频，你给我硬盘翻烂了都行 可以看看有没有啥感兴趣的"
-DO_SOMETHING_PROB = 0.4          # 每次漫游 40% 概率不做"刷内容", 改去"找事做"
-GOAL_PUSH_COOLDOWN = 20 * 60     # 推进目标冷却: 20分钟 (防每10分钟都启动同一目标)
-DISK_EXPLORE_ROOTS = ("C:\\", "D:\\", "E:\\")   # 硬盘探索候选根目录
+# 配置 (统一在 config.py, 2026-08-30 集中化)
+REVERIE_INTERVAL_SECONDS = config_mod.REVERIE_INTERVAL_SECONDS
+REVERIE_ROUNDS = config_mod.REVERIE_ROUNDS
+REVERIE_SALIENCE_THRESHOLD = config_mod.REVERIE_SALIENCE_THRESHOLD
+RECENT_CHEWED_MAX = config_mod.RECENT_CHEWED_MAX
+REVERIE_MIN_SILENCE_MIN = config_mod.REVERIE_MIN_SILENCE_MIN
+CURIOSITY_EVERY = config_mod.CURIOSITY_EVERY
+CURIOSITY_SEARCH_N = config_mod.CURIOSITY_SEARCH_N
+CURIOSITY_MAX_ROUNDS = config_mod.CURIOSITY_MAX_ROUNDS
+GOAL_PUSH_COOLDOWN = config_mod.GOAL_PUSH_COOLDOWN
+# (WANDER/DEEPEN/找事做 配置已随 2026-08-21 漫游取消 + 2026-08-30 死代码清理 一并移除)
 
 
 class ReverieEngine:
@@ -59,10 +41,7 @@ class ReverieEngine:
         self.last_cycle = 0.0
         self.cycle_count = 0       # 联想次数 (好奇触发计数)
         self.last_curiosity = 0.0  # 上次好奇触发时间
-        self.last_wander = 0.0     # 上次世界漫游时间
-        self.last_wander_content = ""   #  最近漫游到的外部内容 (联想咀嚼素材: 看了→思考)
-        self.wander_dedup = None    #  漫游防重复存储 (NEKO sources吸收, 懒加载)
-        self._interest_topics = []       #  从念头提取的兴趣点 (思考→下一次漫游搜索话题)
+        self._interest_topics = []       #  从念头提取的兴趣点 (供未来主动搜索用)
         self._last_goal_push_ts = 0.0    #  上次推进目标时间 (节流, 防每10分钟都启动)
 
     # ---- 环境快照 ----
@@ -202,41 +181,25 @@ class ReverieEngine:
             wm_query = " ".join(c["text"] for c in self.work_memory[-2:])
             query = (env + " " + wm_query)[:300]
 
-            #  行动→思考: 刚漫游看过外部内容, 第一轮先"消化"它 (不检索旧记忆)
-            wander_text = ""
-            if rnd == 0 and self.last_wander_content:
-                wander_text = f"[刚看到的] {self.last_wander_content}"
-                self.last_wander_content = ""   # 消费掉, 不重复嚼
-
-            if wander_text:
-                thought = self._chew(env, wander_text, self.work_memory)
-                mem_label = "漫游内容"
-            else:
-                #  情绪平衡: 若已连续嚼了2轮负面记忆, 这一轮强制检索非负面记忆
-                #   (念头mood: 用salience无法直接判断正负, 用记忆文本里的负面词粗判)
-                force_nonneg = self._recent_chews_negative(chewed_ids, 2, user=lu)
-                mems = k.memory.reverie_retrieve(
-                    query,
-                    current_mood=k.state.emotion.state["deep_affect"]["current_mood"],
-                    n=1, exclude_ids=self.recent_chewed + chewed_ids,
-                    prefer_nonneg=force_nonneg, user=lu)
-                if not mems:
-                    break  # 没新记忆可嚼, 提前结束
-                mem = mems[0]
-                chewed_ids.append(mem["id"])
-                #  记忆时间戳 → 念头有'过去感' (防把旧记忆当现在)
-                thought = self._chew(env, mem["text"], self.work_memory,
-                                     mem_ts=mem.get("timestamp"))
-                mem_label = mem["text"][:40]
+            #  情绪平衡: 若已连续嚼了2轮负面记忆, 这一轮强制检索非负面记忆
+            #   (念头mood: 用salience无法直接判断正负, 用记忆文本里的负面词粗判)
+            force_nonneg = self._recent_chews_negative(chewed_ids, 2, user=lu)
+            mems = k.memory.reverie_retrieve(
+                query,
+                current_mood=k.state.emotion.state["deep_affect"]["current_mood"],
+                n=1, exclude_ids=self.recent_chewed + chewed_ids,
+                prefer_nonneg=force_nonneg, user=lu)
+            if not mems:
+                break  # 没新记忆可嚼, 提前结束
+            mem = mems[0]
+            chewed_ids.append(mem["id"])
+            #  记忆时间戳 → 念头有'过去感' (防把旧记忆当现在)
+            thought = self._chew(env, mem["text"], self.work_memory,
+                                 mem_ts=mem.get("timestamp"))
+            mem_label = mem["text"][:40]
             # 规则②③: 嚼 → 念头入工作记忆
-            if thought and thought.get("text"):
-                self.work_memory.append(thought)
-                thoughts.append(thought)
-                k._log_event("reverie", round=rnd, user=lu, memory=mem_label,
-                             thought=thought["text"][:80],
-                             salience=round(float(thought.get("salience", 0)), 3))
-
-            # 规则②③: 嚼 → 念头入工作记忆
+            # ★ 2026-08-30 修复: 此处曾有一段完全重复的 if 块 (复制粘贴残留),
+            #   导致同一念头被 append 两次进 work_memory/thoughts, 事件也记两遍。
             if thought and thought.get("text"):
                 self.work_memory.append(thought)
                 thoughts.append(thought)
@@ -561,254 +524,6 @@ class ReverieEngine:
             pass
         # 提炼不出可检索词 → 返回空 (让漫游用默认话题, 不硬搜)
         return ""
-
-    def _wander_topic(self):
-        """漫游搜索话题: 从最近念头/兴趣点提取 (思考→行动)"""
-        topics = [t for t in self._interest_topics if len(t) >= 2]
-        if topics:
-            return random.choice(topics[-5:])
-        # 从最近记忆/念头里找
-        try:
-            k = self.kiri
-            mems = k.memory.recent_events(n=10, user=k.DEFAULT_USER)
-            for m in reversed(mems):
-                t = str(m.get("text", ""))
-                if t and len(t) > 6:
-                    # ★ 同样提炼成关键词, 不用整句去搜
-                    kw = self._extract_search_topic(t)
-                    if kw:
-                        return kw
-        except Exception:
-            pass
-        return "有趣的知识"
-
-    def should_wander(self):
-        """[已废弃 2026-08-21 雾弥] 漫游定时调度 — 已取消, 她做什么由 LLM 自主决定
-        保留函数仅为防引用断裂, 不再被 app.py 调用"""
-        if time.time() - self.last_wander < WANDER_INTERVAL_SECONDS:
-            return False
-        silence = (time.time() - self.kiri.state.last_interact) / 60
-        return silence >= REVERIE_MIN_SILENCE_MIN
-
-    # ---- 反思深挖 (2026-08-19 雾弥提议) ----
-    def _reflect_deepen(self, label, result):
-        """刷到内容后的反思: 这条真勾起兴趣吗? → 感兴趣就提炼关键词深挖相关视频
-        人刷视频的样子: 看到有意思的 → 停下来 → 找更多相关的看
-        流程: LLM判断兴趣+提炼关键词 → 概率触发深挖(bili_search) → 结果入记忆+事件
-        频率: DEEPEN_COOLDOWN 冷却; 不阻塞漫游主流程"""
-        k = self.kiri
-        try:
-            import mcp_client
-            import kiri_mind
-            # 冷却检查
-            now = time.time()
-            if now - getattr(self, "_last_deepen", 0.0) < DEEPEN_COOLDOWN:
-                return
-            # LLM 反思: 内容 → 是否真感兴趣 + 相关关键词 (一次调用, JSON)
-            user_p = (f"你刚刷到一条内容:\n「{label}: {result[:150]}」\n\n"
-                      "你真正感兴趣吗? (区分'随便看看'和'想深入了解')\n"
-                      "只输出JSON: {\"interested\": 0.0-1.0, \"keywords\": \"想深挖的关键词(1-2个, 没有留空)\", \"why\": \"一句话理由(≤15字)\"}")
-            raw = engine.generate(prompt_mod.deepen_system(), user_p, max_tokens=120, temperature=0.5)
-            m = re.search(r'\{[^{}]*\}', raw or "")
-            if not m:
-                return
-            import json as _json
-            obj = _json.loads(m.group(0))
-            score = float(obj.get("interested", 0.0) or 0.0)
-            kw = str(obj.get("keywords", "") or "").strip()
-            if score < DEEPEN_MIN_SALIENCE or not kw:
-                return  # 不感兴趣/提炼不出 → 不深挖
-            if random.random() > DEEPEN_INTEREST_PROB:
-                return  # 概率门槛
-            self._last_deepen = now
-            # 深挖: B站搜相关视频 (内容类最相关)
-            deep = mcp_client.call_tool("bili_search", {"keyword": kw, "n": 3})
-            if not deep or str(deep).startswith("(……") or "没结果" in str(deep):
-                # B站没搜到 → 试试 Bing 网页搜索
-                deep = mcp_client.call_tool("search", {"query": kw, "n": 2})
-                src = "Bing"
-            else:
-                src = "B站"
-            # 结果入记忆 (联想引擎能嚼到 = 她深挖过这个话题)
-            k.memory.encode(f"[深挖] 我对「{kw}」感兴趣, 找到: {str(deep)[:200]}",
-                            k.state.emotion.state, speaker="system")
-            k._log_event("deepen", keyword=kw, source=src, interested=round(score, 2),
-                         result=str(deep)[:120], label=label[:40])
-            kiri_mind.curiosity(f"深挖({kw})", src, str(deep)[:150])
-            logger = __import__("logging").getLogger("kiri")
-            logger.info(f"深挖[{src}]「{kw}」(兴趣{round(score,2)}): {str(deep)[:50]}")
-            # 深挖到好东西 → 小概率分享 (审查后外发)
-            try:
-                import config as _cfg
-                if _cfg.SHARE_CURIOSITY_PROB >= random.random() and len(str(deep)) > 30:
-                    share = self._share_line(f"我刚想弄明白「{kw}」", str(deep))
-                    if share:
-                        k.offer_share(share, kind="deepen")
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-    def world_wander(self):
-        """[已废弃 2026-08-21 雾弥] 世界漫游 — 已取消! 系统不再定时强制刷内容/找事做。
-        她想看世界/做事时, 由联想念头涌现 (_maybe_act_on_thoughts) 或对话中 agent 自主调工具。
-        保留函数仅为防引用断裂, 不再被调用。"""
-        k = self.kiri
-        try:
-            import kiri_mind
-            # ★ 2026-08-21 雾弥: "中间想起来又去刷视频" — 她正在做事时, 漫游不打断:
-            #   20分钟内刚启动过 推进目标/念头行动 → 本次漫游跳过 (让她专注做完)
-            if time.time() - self._last_goal_push_ts < GOAL_PUSH_COOLDOWN:
-                self.last_wander = time.time()
-                return
-            #  打游戏分支已移除 (osu 相关, 2026-08-29 清理)
-            # ★ 找事做 (2026-08-21 雾弥: "主动性和主动找事情做还是大问题"):
-            #   别只会刷视频 — 有概率去推进自己的目标 / 探索硬盘
-            #   ★ 2026-08-21 雾弥: "想起来又去刷视频" — 有进行中的目标时,
-            #     做事概率大幅提高 (0.7), 刷视频降为 30% (她说过: 少刷点视频)
-            try:
-                import goals as _goals_mod
-                _has_goal = "你的目标:" in str(_goals_mod.list_goals())
-            except Exception:
-                _has_goal = False
-            do_prob = 0.7 if _has_goal else DO_SOMETHING_PROB
-            if random.random() < do_prob:
-                if self._try_do_something():
-                    self.last_wander = time.time()
-                    return
-            #  多源漫游 (NEKO sources吸收): 并发收集 + 防重复 + 公平轮换
-            import wander_sources as ws_mod
-            if self.wander_dedup is None:
-                self.wander_dedup = ws_mod.DedupStore()
-            # ★ 话题系统 (NEKO topic吸收): 证据够多时提炼话头 (自节流, 不常调)
-            try:
-                k.topic_signals.maybe_analyze()
-            except Exception:
-                pass
-            # ★ 话题话头驱动 (60%概率): 刷"雾弥们感兴趣"的内容, 而非随机
-            material = None
-            try:
-                mats = k.topic_signals.materials()
-                if mats and random.random() < 0.6:
-                    material = random.choice(mats)
-            except Exception:
-                pass
-            zone = random.choice(WANDER_PREF_ZONES) if random.random() < WANDER_PREF_WEIGHT else None
-            topic = self._wander_topic()
-            if material:
-                # 用话头关键词搜索 (用户导向, 从聊过的话长话头)
-                topic = material.get("keywords") or material.get("interest") or topic
-                zone = None
-            results = ws_mod.collect(topic=topic, zone=zone, max_sources=3)
-            candidates = ws_mod.pick_candidates(results, self.wander_dedup, budget=8)
-            if not candidates:
-                logger = __import__("logging").getLogger("kiri")
-                logger.info(f"漫游: {len(results)}个源均无新内容 (防重复拦截)")
-                self.last_wander = time.time()
-                return
-            pick = random.choice(candidates)
-            label = pick.get("label") or pick["source"]
-            result = pick["text"]
-            self.last_wander_content = result
-            # 内容入记忆 (带[漫游]标签+源, 联想能嚼到 = 看了内容→思考; 兴趣追踪)
-            # ★ speaker="system": 漫游到的外部内容是她自己的认知, 不是用户事实
-            k.memory.encode(f"[漫游] {label}: {result[:250]}", k.state.emotion.state, speaker="system")
-            # 记录 (带source/zone → 统计她喜欢看啥视频)
-            k._log_event("wander", source=pick["source"], label=label, zone=zone or "",
-                         result=result[:120], candidates=len(candidates), sources=len(results))
-            kiri_mind.curiosity(f"漫游({label})", pick["source"], result[:150])
-            # ★ 反思深挖 (2026-08-19 雾弥提议): 刷到感兴趣的 → 提炼关键词 → 深挖相关视频
-            try:
-                self._reflect_deepen(label, result)
-            except Exception:
-                pass
-            #  数据日志: 漫游样本 (兴趣分析)
-            try:
-                import data_log
-                data_log.wander(pick["source"], label, result)
-            except Exception:
-                pass
-            # 可能生成分享句 (审查后发群) — 刷到好玩的想告诉人
-            if WANDER_SHARE_PROB >= random.random():
-                if material:
-                    # ★ 话头分享: 用 hook 自然开口 (用户导向, 像想起TA感兴趣的事)
-                    hook = material.get("hook") or f"我刚在看{material.get('interest','')}相关的东西"
-                    share = self._share_line(f"刚看到「{material.get('interest','')}」相关", result)
-                    if share:
-                        share = f"{hook}\n{share}" if len(share) < 60 else share
-                    else:
-                        share = hook
-                else:
-                    share = self._share_line(f"我刚{label}", result)
-                if share:
-                    url = pick.get("url")
-                    if url:
-                        share = f"{share} {url}"   #  带真实链接 (NEKO: 生成后回填URL, 防LLM编造)
-                    k.offer_share(share, kind="wander")
-            logger = __import__("logging").getLogger("kiri")
-            logger.info(f"漫游: {label} → {len(result)}字 (候选{len(candidates)}/{len(results)}源)")
-            self.last_wander = time.time()
-        except Exception:
-            self.last_wander = time.time()
-
-    def _try_do_something(self):
-        """主动找事做 (2026-08-21 雾弥: "主动性和主动找事情做还是大问题"):
-        她闲着时真的去做事, 不只是刷视频:
-          ① 有进行中的目标 → 启动后台任务推进 (她说了要修memory_rings, 闲着就该去干)
-          ② 否则 → 探索硬盘 (随机根目录逛, 发现入记忆, 可能想分享)
-        返回 True=做了事 / False=没做成(回退刷内容)"""
-        k = self.kiri
-        try:
-            # ① 推进自己的目标 (后台 explore 任务真的去干, 做完沉淀记忆)
-            try:
-                import goals
-                gl = goals.list_goals()
-                if "你的目标:" in str(gl):
-                    now = time.time()
-                    if now - self._last_goal_push_ts > GOAL_PUSH_COOLDOWN:
-                        goal_line = next((l for l in str(gl).splitlines() if l.startswith("- ")), "")
-                        goal_text = goal_line[2:].split(" (进度")[0].strip()[:80]
-                        # 去掉 [id] 前缀, 任务描述干净
-                        import re as _re
-                        goal_text = _re.sub(r"^\[[^\]]*\]\s*", "", goal_text).strip()
-                        if goal_text:
-                            self._last_goal_push_ts = now
-                            try:
-                                import diagnose_agent
-                                mgr = diagnose_agent.get_manager()
-                                tid = mgr.start(k, f"推进我的目标: {goal_text}",
-                                                max_rounds=40, mode="explore")
-                                k._log_event("wander", source="goal", label="推进目标",
-                                             result=goal_text[:60], task_id=tid)
-                                return True
-                            except Exception:
-                                pass
-            except Exception:
-                pass
-            # ② 探索硬盘 (没目标/节流中): 随机逛, 看有没有感兴趣/不知道是啥的
-            try:
-                import os as _os
-                roots = [r for r in DISK_EXPLORE_ROOTS if _os.path.exists(r)]
-                if roots:
-                    import random as _r
-                    root = _r.choice(roots)
-                    import kiri_mcp_server as kms
-                    text = kms.look_around(root)
-                    if text and "失败" not in str(text) and len(str(text)) > 10:
-                        k.memory.encode(f"[探索] 我逛了{root}，看到: {str(text)[:180]}",
-                                        k.state.emotion.state, speaker="system")
-                        k._log_event("wander", source="disk", label="探索硬盘", result=str(text)[:80])
-                        # 可能想告诉她我看到了什么
-                        if WANDER_SHARE_PROB >= _r.random():
-                            share = self._share_line(f"我刚逛了逛{root}", str(text)[:120])
-                            if share:
-                                k.offer_share(share, kind="wander")
-                        return True
-            except Exception:
-                pass
-            return False
-        except Exception:
-            return False
 
     # ★ 念头→行动 (2026-08-21 雾弥: "内部思维流离散" 治本 — 行动从念头流里长出来):
     #   她走神时冒出"该去做了"的冲动 (高salience+行动意图词) → 启动后台真的去做

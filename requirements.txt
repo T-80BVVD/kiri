@@ -1,11 +1,17 @@
 # Kiri requirements — 真实模式 (python app.py) 所需
 # 说明: 零依赖 Demo (python app.py --demo) 只需要 Python 标准库, 无需安装任何包。
+# ★ 2026-08-30 开源适配: torch/transformers 是真实模式必需 (memory.py 的 bge-small-zh
+#   向量嵌入直接 import torch/transformers), 之前被注释导致按 README 安装后 ImportError。
+#   bge 模型需单独下载: https://huggingface.co/BAAI/bge-small-zh-v1.5
+#   可用环境变量 KIRI_BGE_PATH 指定模型目录 (默认 D:\models\bge-small-zh-v1.5)。
 
 # ---- 核心 (LLM 引擎 + 记忆) ----
 chromadb>=0.4
 jieba>=0.42
 numpy
 psutil
+torch
+transformers
 
 # ---- MCP 客户端 (外部工具服务) ----
 mcp
@@ -13,8 +19,6 @@ mcp
 # ---- QQ 官方桥 ----
 websockets
 
-# ---- 本地推理 (可选: config.ENGINE="local" 时才需要) ----
-# torch
-# transformers
+# ---- 本地推理 (可选: config.ENGINE="local" 时才需要额外组件) ----
 # peft
 # unsloth

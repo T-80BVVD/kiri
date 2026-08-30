@@ -20,6 +20,15 @@ PRICE_OUTPUT_PER_M = 4.5              # 输出 元/百万token
 LOCAL_MODEL = "deepseek-llm-7b-chat"  # 本地模型(待测试, D:\alice)
 LOCAL_OLLAMA_URL = "http://127.0.0.1:11434"  # (弃用, 本地走 local_serve)
 LOCAL_SERVE_URL = "http://127.0.0.1:8767"    # ★ 2026-08-22 本地推理服务 (local_serve.py: 4bit+QLoRA)
+# ★ 2026-08-30 开源适配: key 读取路径可配置 (engine.py 先环境变量再回退此文件)
+#   默认沿用 DSH 凭据文件 (本地开发); 开源部署建议只用环境变量 DEEPSEEK_API_KEY
+DSH_CREDENTIALS_PATH = os.path.expanduser(r"~\.dsh\.credentials.yaml")
+
+# ---- 向量记忆 (bge-small-zh 本地模型) ----
+# ★ 2026-08-30 开源适配: 原硬编码 D:\models\bge-small-zh-v1.5, 换机器必炸。
+#   现在: 环境变量 KIRI_BGE_PATH 优先, 其次此默认值; 模型可从 HuggingFace 下载:
+#   https://huggingface.co/BAAI/bge-small-zh-v1.5
+BGE_MODEL_PATH = os.environ.get("KIRI_BGE_PATH", r"D:\models\bge-small-zh-v1.5")
 
 # ---- 状态系统 ----
 # ★ 事件绑定情绪 (M1, 2026-08-27, EMOTION_EVENT_PLAN.md): 心情从事件记录聚合, 不再是无对象标量
@@ -63,6 +72,23 @@ SLEEP_START_HOUR = 23                # 睡眠期开始(小时)
 SLEEP_END_HOUR = 7                   # 睡眠期结束(小时)
 CONSOLIDATE_ONCE_PER_HOURS = 18      # 每多少小时最多巩固一次(≈每天一次)
 CONSOLIDATE_MIN_EVENTS = 3           # 最少对话事件才巩固(太少不值得)
+
+# ---- 夜间自主循环 (night_loop.py) ----
+# ★ 2026-08-30 统一配置: 原散落在 night_loop.py 顶部
+NIGHT_STAGE_INTERVAL = 1800          # 每阶段间隔(秒) ≈30分钟
+NIGHT_MAX_STAGES = 10                # 一晚最多阶段数 (23点~7点≈8小时)
+
+# ---- 联想引擎 (reverie.py) ----
+# ★ 2026-08-30 统一配置: 原散落在 reverie.py 顶部
+REVERIE_INTERVAL_SECONDS = 600       # 联想降频: 每10分钟一次 (内省为辅)
+REVERIE_ROUNDS = 2                   # 联想轮数 (更短更精, 少空想)
+REVERIE_SALIENCE_THRESHOLD = 0.5     # 念头重要度>=此值写入长期记忆
+RECENT_CHEWED_MAX = 20               # 近期嚼过记忆清单长度(防死循环)
+REVERIE_MIN_SILENCE_MIN = 2          # 沉默>=2分钟才走神 (聊天时专注对话)
+CURIOSITY_EVERY = 3                  # 每3次联想触发一次"好奇→查→学"
+CURIOSITY_SEARCH_N = 2               # 每次好奇搜几条
+CURIOSITY_MAX_ROUNDS = 3             # agentic好奇: 最多几轮工具调用
+GOAL_PUSH_COOLDOWN = 20 * 60         # 推进目标冷却: 20分钟
 
 # ---- 输出/克制 ----
 STOP_WORD = "停"                    # 用户说"停"→静默

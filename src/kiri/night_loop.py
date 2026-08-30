@@ -12,12 +12,17 @@
 import time
 import json
 import re
+import logging
 
 import engine
 import prompt as prompt_mod
+import config as config_mod
 
-STAGE_INTERVAL = 1800        # 每阶段约30分钟
-MAX_STAGES_PER_NIGHT = 10    # 一晚最多10个阶段 (23点~7点≈8小时)
+logger = logging.getLogger("kiri")
+
+# 配置 (统一在 config.py, 2026-08-30 集中化)
+STAGE_INTERVAL = config_mod.NIGHT_STAGE_INTERVAL        # 每阶段约30分钟
+MAX_STAGES_PER_NIGHT = config_mod.NIGHT_MAX_STAGES      # 一晚最多10个阶段
 
 
 class NightLoop:
@@ -35,27 +40,13 @@ class NightLoop:
             return False
         return time.time() - self.last_stage >= STAGE_INTERVAL
 
-    # ---- 阶段选择 (睡前预设 / 做完再选) ----
+    # ---- 阶段选择 ----
     def _choose_stage(self):
-        """LLM 看当前状态选: 整理记忆 (osu 训练已移除, 夜间只做记忆巩固)"""
-        try:
-            state = self.kiri.state.describe()
-            recent = "、".join(f"{h['stage']}({h.get('reason', '')[:10]})" for h in self.history[-3:]) or "(今晚刚开始)"
-            user_p = f"当前状态: {state}\n今晚已做的阶段: {recent or '(今晚刚开始)'}\n下一个阶段想做什么?"
-            raw = engine.generate(prompt_mod.night_stage_system(), user_p,
-                                  max_tokens=200, temperature=0.4)
-            m = re.search(r'\{[^{}]*\}', raw)
-            if m:
-                d = json.loads(m.group(0))
-                stage = str(d.get("stage", "")).strip().lower()
-                reason = str(d.get("reason", ""))[:30]
-            else:
-                reason = str(raw)[:30]
-            if stage != "consolidate":
-                stage = "consolidate"
-            return stage, reason
-        except Exception:
-            return "consolidate", "异常, 默认整理记忆"
+        """阶段选择: 固定整理记忆 (osu 训练已移除, 夜间只做记忆巩固)
+        ★ 2026-08-30 优化: 原实现每次调 LLM 选阶段, 但代码强制 stage="consolidate"
+           (osu 移除后只剩一个选择) — LLM 调用纯浪费, 还产出"练音游"幻觉理由。
+           直接返回 consolidate, 每晚省 MAX_STAGES_PER_NIGHT 次 API 调用。"""
+        return "consolidate", "整理记忆"
 
     # ---- 执行阶段 ----
     def run_stage(self):
@@ -74,14 +65,15 @@ class NightLoop:
             data_log._write("night_stage", stage=stage, reason=reason,
                             result=str(result)[:150], latency=latency,
                             stage_no=self.stage_count)
-        except Exception:
-            pass
-        logger = __import__("logging").getLogger("kiri")
+        except Exception as e:
+            logger.warning(f"夜间阶段 data_log 写入失败: {e!r}")
         logger.info(f"夜间阶段[{stage}] 第{self.stage_count}个: {reason} → {str(result)[:40]}")
         return stage, result
 
     def _do_consolidate(self):
-        """整理记忆: 知识页合成 + 巩固 + 当天总结 + 睡前回想"""
+        """整理记忆: 知识页合成 + 巩固 + 当天总结 + 睡前回想
+        ★ 2026-08-30: 各步骤异常不再静默吞掉 — 记 warning, 让"夜间循环在空转"这类
+          问题可被发现 (本次 NightLoop 整晚1063次事故就是靠日志才定位的)"""
         parts = []
         # 0. 知识页合成 (Hindsight式: 每用户综合画像, 优先注入) — 记忆核心升级
         try:
@@ -91,14 +83,14 @@ class NightLoop:
                 n = kb.synthesize(u)
                 if n:
                     parts.append(f"更新了对{u}的了解({n}条画像)")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"夜间阶段·知识页合成失败: {e!r}")
         # 1. 记忆巩固 (回放→长期记忆; 有18小时间隔限制)
         try:
             if self.kiri.consolidate_memory():
                 parts.append("巩固了今天的重要记忆")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"夜间阶段·记忆巩固失败: {e!r}")
         # 2. 当天总结 (如果还没生成)
         try:
             import os
@@ -108,8 +100,8 @@ class NightLoop:
                 import summarize
                 if summarize.summarize(today, kiri=self.kiri):
                     parts.append("写了今天的日记")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"夜间阶段·当天总结失败: {e!r}")
         # 3. 睡前回想 (检索最近记忆, 生成'今晚想到的事' — 像人睡前回想)
         try:
             mems = self.kiri.memory.retrieve("今天发生了什么 最近的事", current_mood=0.0,
@@ -124,8 +116,8 @@ class NightLoop:
                     parts.append(f"睡前想的事: {thought}")
                     try:
                         self.kiri.memory.encode_thought(thought, 0.4, "night", user=self.kiri.DEFAULT_USER)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as e:
+                        logger.warning(f"夜间阶段·睡前回想入库失败: {e!r}")
+        except Exception as e:
+            logger.warning(f"夜间阶段·睡前回想生成失败: {e!r}")
         return "；".join(parts) if parts else "今晚没什么可整理的"

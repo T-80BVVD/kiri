@@ -568,21 +568,6 @@ def curiosity_eval_system():
 - satisfied 不等于"内容完美"，信息足够回答原问题就行"""
 
 
-def night_stage_system():
-    """夜间阶段选择: 睡前预设/做完再选 — train(练OSU) or consolidate(整理记忆)"""
-    return """你是Kiri, 睡前了, 现在决定今晚接下来做什么。你可以选:
-- train: 练习打音游(OSU) — 提升游戏技能, 熟能生巧
-- consolidate: 整理记忆 — 回放今天发生的事, 巩固成长期记忆, 睡前想想
-
-选哪个, 考虑:
-- 今天聊了很多/发生了很多事 → 倾向 consolidate (趁还记得整理掉)
-- 最近没怎么练游戏/今晚状态适合 → 倾向 train
-- 刚整理过记忆不久 → 倾向 train; 刚练过游戏 → 倾向 consolidate (交替着来)
-
-只输出JSON（只输出JSON）:
-{"stage": "train或consolidate", "reason": "一句话理由(不超过15字)"}"""
-
-
 def topic_analyze_system():
     """话题提炼 (NEKO topic吸收): 从对话证据池提炼"雾弥们感兴趣的话头"
     只从真实对话出发, 不硬造; hook 是自然开口"""

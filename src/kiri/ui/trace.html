@@ -106,7 +106,7 @@ body {
   <span class="spacer"></span>
   <select id="usersel">
     <option value="">全部用户</option>
-    <option value="雾弥">雾弥</option>
+    <option value="雾弥">用户</option>
   </select>
   <button id="refresh">刷新</button>
 </div>
@@ -124,7 +124,7 @@ let userFilter = "";
 let knownUsers = new Set(["雾弥"]);
 
 const KIND_LABEL = {
-  chat_user: "雾弥 → 她", chat_kiri: "她 → 对方",
+  chat_user: "用户 → 她", chat_kiri: "她 → 对方",
   thought: "💭 内心独白", reverie: "💭 联想",
   curiosity: "❓ 好奇", tool_call: "🔧 工具调用", proactive: "📢 主动发言",
 };
@@ -154,7 +154,7 @@ function render(rows) {
     const k = r.kind;
     const who = r.user || "";
     if (who) knownUsers.add(who);
-    const whoTxt = who === "雾弥" ? "雾" : (who || "—");
+    const whoTxt = who === "雾弥" ? "用户" : (who || "—");
     const ts = (r.ts || "").slice(5, 16); // MM-DD HH:MM:SS
     if (k === "chat_user" || k === "chat_kiri") {
       const cls = who === "雾弥" ? "from-wumi" : (k === "chat_kiri" ? "from-kiri" : "from-other");
