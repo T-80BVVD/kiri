@@ -35,12 +35,13 @@ class AgentLoop:
     MAX_TOOL_RESULT = 100000     # 工具结果完整回填, 不截断
     STALL_LIMIT = 5              # 连续N轮无新信息(同样动作) → 视为打转, 自动停
 
-    def __init__(self, system_prompt, tools, execute_fn, memory=None):
+    def __init__(self, system_prompt, tools, execute_fn, memory=None, last_speak=""):
         """
         system_prompt: agent 系统提示 (人格+工具说明)
         tools: [{name, description, args_schema}] 工具清单 (给LLM看的)
         execute_fn: (tool_name, args_dict) -> str 实际执行
         memory: (可选) Kiri 记忆系统 — 决策时检索相关长期记忆作【长】层背景
+        last_speak: (可选) 上一次发给用户的话 — 决策时提示"别复读上面那句"
         """
         self.system_prompt = system_prompt
         self.tools = tools
@@ -48,7 +49,9 @@ class AgentLoop:
         self.memory = memory          # ★ 长中短: 长=记忆系统(长期背景)
         self.pending_plans = []   # 未完成的计划: [{goal, declared}]
         self.done_actions = []    # 已执行的动作: [tool_name]
-        self._last_speak = ""     # ★ 接续不重复: 上一次发给用户的话 (speak)
+        # ★ 2026-08-30: 由 kiri 传入最近一次回复 — 原来恒为 ""("别复读上面那句"从不注入,
+        #   导致 agent 会 echo 自己在对话历史里说的上一句, 如把"等1000年？"重复发出)
+        self._last_speak = last_speak or ""
 
     def _tools_text(self):
         """工具清单 → 给 LLM 的文本"""

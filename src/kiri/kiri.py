@@ -658,7 +658,9 @@ class Kiri:
                 # ★ 快速决策窗口 (2026-08-21 雾弥): 不限时深挖 — 是否继续探索由她决定
                 #   agent 前几轮决策: 若她直接reply → 快速答; 若她开始探索(调了工具) →
                 #   立即转后台不限时深挖 (respond 秒回, 她自然停止才有结果)
-                agent_loop = agent.AgentLoop(agent_sys, tools, execute, memory=self.memory)  # ★ 长中短: 传入记忆系统
+                agent_loop = agent.AgentLoop(agent_sys, tools, execute, memory=self.memory,
+                                             last_speak=(self.output_history[-1]
+                                                         if self.output_history else ""))  # ★ 长中短: 传入记忆系统 + 最近回复(防echo)
                 # ★ B方案: 生成回复前重新取最新对话 + 摘要注入 (2026-08-29)
                 #   工作记忆: 不用 30 条原文(旧对话会绑架她), 只留最近几轮的精简摘要
                 dlg = self.get_dialog(user)
