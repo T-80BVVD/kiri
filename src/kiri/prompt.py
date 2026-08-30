@@ -94,13 +94,15 @@ def state_block(state_desc):
     return f"\n[当前状态] {state_desc}"
 
 
-def dialog_block(dialog):
-    """最近对话轮次 (让Kiri记住'刚才说了什么', 对话连贯的关键)"""
+def dialog_block(dialog, user=None):
+    """最近对话轮次 (让Kiri记住'刚才说了什么', 对话连贯的关键)
+    ★ 2026-08-30: 新增 user 参数 — 原硬编码"雾弥", 对非雾弥用户名字标错"""
     if not dialog:
         return ""
+    who_name = user or "雾弥"
     lines = []
     for m in dialog[-30:]:
-        who = "雾弥" if m["role"] == "user" else "你"
+        who = who_name if m["role"] == "user" else "你"
         lines.append(f"{who}: {m['text']}")
     return "\n[最近的对话]\n" + "\n".join(lines[-28:])
 
@@ -131,19 +133,34 @@ def mind_block(max_items=6, retrieved_thoughts=None):
                     + "\n（这些是你真实经历过的，雾弥问起时可以自然提起）")
 
         # 2. 回退: 读 kiri_mind.jsonl 最近事件
+        # ★ 2026-08-30 性能修复: 原每次 respond 全量读整个 jsonl (无上限增长 → 越跑越慢);
+        #   只读文件尾部 64KB (≈数百条, 足够 max_items 用)
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kiri_mind.jsonl")
         if not os.path.exists(path):
             return ""
         rows = []
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line))
-                except Exception:
-                    pass
+        try:
+            size = os.path.getsize(path)
+            with open(path, "rb") as f:
+                if size > 64 * 1024:
+                    f.seek(size - 64 * 1024)
+                    raw = f.read().decode("utf-8", errors="replace")
+                    first_nl = raw.find("\n")
+                    if first_nl >= 0:      # 丢弃可能被截断的第一行
+                        raw = raw[first_nl + 1:]
+                    lines = raw.splitlines()
+                else:
+                    lines = f.read().decode("utf-8", errors="replace").splitlines()
+        except OSError:
+            return ""
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except Exception:
+                pass
         # 取最近的内心事件 (念头/好奇/工具调用), 排除刚说的这句话本身避免重复
         recent = [r for r in rows[-max_items * 3:] if r.get("kind") in ("thought", "curiosity", "tool_call", "proactive")]
         recent = recent[-max_items:]
@@ -407,14 +424,16 @@ def proactive_system(state_desc, memories, reason, dialog=None, thoughts=None, s
         tags = "、".join(ev.get("emotion_tags", []) or [])
         note = ev.get("appraisal_note") or ""
         who = user or "雾弥"
+        feel = f"这件事让你{tags}。" if tags else ""     # ★ 2026-08-30: tags 为空时不再输出"这件事让你。"
         event_hint = (f"\n你心里惦记着一件事: 「{str(ev.get('event_text',''))[:60]}」。"
-                      f"这件事让你{tags}。{note}\n你可以顺着这件事主动联系{who}——"
+                      f"{feel}{note}\n你可以顺着这件事主动联系{who}——"
                       "因为它是真实发生的，你提起它完全自然，不用找别的借口。")
     who = user or "雾弥"
     return (persona() + relation_stage_block(stage or "", who)
-            + state_block(state_desc) + memory_block(memories)
+            + state_block(state_desc)
+            + memory_block(memories, user=who)          # ★ 2026-08-30: 补传 user, 非雾弥用户不再标错
             + thoughts_block(thoughts or [])
-            + dialog_block(dialog or [])
+            + dialog_block(dialog or [], user=who)      # ★ 2026-08-30: 同上
             + f"\n\n[此刻] {reason_hint}{event_hint}。你想主动联系{who}。\n"
             "输出格式:\n[内心独白] 你此刻真实的想法\n[是否说话] YES 或 NO\n[要说的话] 想说的话。"
             "**可以写 1-3 条，每条单独一行**（像真人发消息一条条连着发），每条 15-40 字，"
@@ -633,7 +652,9 @@ def parse_proactive(text):
                 if "内心独白" in tag and not mono:
                     mono = seg
                 elif "是否说话" in tag:
-                    speech = seg.upper()
+                    # ★ 2026-08-30 容错: 模型可能输出 **YES** / "：YES" (加粗/全角冒号)
+                    #   原 seg.upper() 得 "**YES**"/"：YES" ≠ "YES" → 整次主动被 kiri 吞掉
+                    speech = _re.sub(r"[*\s:：]+", "", seg).upper()
                 elif "要说的话" in tag:
                     # ★ 收集本行 + 后续非标签行 (连发多条)
                     parts = [seg] if seg else []
@@ -652,8 +673,9 @@ def parse_proactive(text):
         elif "NO" in up:
             speech = "NO"
     if speech == "YES" and not say:
-        # 容错: 取独白后半或全文
-        say = mono if mono else str(text or "")[:80]
+        # 容错: 取独白 (她说 YES 但没写要说的话 → 用心里话顶上)
+        # ★ 2026-08-30: 不再回退到 str(text)[:80] — 那会把 "[内心独白] ..." 标签原文发出去
+        say = mono if mono else ""
     return mono, speech, say
 
 

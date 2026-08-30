@@ -558,8 +558,11 @@ class Kiri:
                             emotion_events_mod.SRC_PROACTIVE,
                             f"主动联系雾弥后，他{waited_min}分钟后回应了",
                             relationship=rel,
+                            # ★ 2026-08-30: 补 fast=True — 原走 appraise 同步调小模型
+                            #   (最多3s) 阻塞在回复关键路径上 (事件入口 531 行已用 fast)
                             extra={"replied": True, "intensity": 0.4,
-                                   "wait_min": waited_min})
+                                   "wait_min": waited_min},
+                            fast=True)
                         self._last_proactive_ts = 0.0   # 只记一次
                 except Exception:
                     pass
@@ -579,8 +582,7 @@ class Kiri:
         dlg = self.get_dialog(user)
         query = user_text
         if dlg:
-            recent = dlg[-1]["text"][:100] if dlg else ""
-            query = (recent + " " + user_text) if recent else user_text
+            query = dlg[-1]["text"][:100] + " " + user_text   # ★ 2026-08-30: 移除死代码 (三元在 if 内永不触发)
         query = query[:300]  # 限制query长度
         # 向量语义检索: 该用户的记忆, 会话内记忆加权 + 长期混合
         # ★ trust吸收: 跨用户召回按每用户信任度加权 (雾弥说的比陌生人说的更可信)
@@ -690,7 +692,9 @@ class Kiri:
                 #   ① 深挖类: "还在查/深挖" → 后台诊断
                 #   ② 探索类: "扒拉/去看看/探索/逛逛/翻一翻" → 后台探索任务 (真的去看)
                 DEEP_WORDS = ("我还在查", "还在查", "需要深挖", "边想边查")
-                EXPLORE_WORDS = ("扒", "去看看", "我去翻", "探索", "逛逛", "翻一翻",
+                # ★ 2026-08-30: 原 EXPLORE_WORDS 含单字"扒" — 任何含"扒"的回复
+                #   ("扒手""扒拉"误解) 都会误转后台探索。改为双字词。
+                EXPLORE_WORDS = ("扒拉", "去看看", "我去翻", "探索", "逛逛", "翻一翻",
                                  "我去找", "挖一挖", "我去瞄")
                 need_deep = bool(agent_reply) and (
                     any(w in agent_reply for w in DEEP_WORDS)
@@ -988,8 +992,14 @@ class Kiri:
     def _consolidate_user(self, user):
         """巩固单个用户的记忆"""
         events = self.memory.recent_events(hours=24, user=user)
-        # 去掉主动发言记录, 只保留 XX↔Kiri 对话
-        conv = [e["text"] for e in events if "你主动联系了" not in e["text"]]
+        # 去掉主动发言/系统生成记忆, 只保留 用户↔Kiri 真实对话
+        # ★ 2026-08-30 修复: 原来只过滤"你主动联系了" — [联想]/[外部]/[探索]/[回顾]
+        #   等 system 记忆也被当对话喂给 LLM 提炼"事实" → 从联想内容固化假事实。
+        conv = [e["text"] for e in events
+                if "你主动联系了" not in e["text"]
+                and e.get("speaker") != "system"
+                and not e["text"].startswith(("[联想]", "[外部]", "[探索]", "[深挖]",
+                                              "[回顾]", "[漫游]", "[想说没说出口]"))]
         if len(conv) < config.CONSOLIDATE_MIN_EVENTS:
             return 0
         # 组装回放材料 (最近30条, 避免过长)

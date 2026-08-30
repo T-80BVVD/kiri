@@ -103,10 +103,18 @@ class TopicSignals:
                     return 0
             return self.analyze()
         except Exception:
+            # ★ 2026-08-30 修复: 失败也冷却 — 原异常冒泡时 last_analyze 不更新,
+            #   LLM/解析持续失败时每 tick 都重试 → 无限烧 token
+            try:
+                self._data["last_analyze"] = time.time()
+                self.save()
+            except Exception:
+                pass
             return 0
 
     def analyze(self):
-        """LLM 提炼: 证据池 → 2-3个话头 {interest, keywords, hook}"""
+        """LLM 提炼: 证据池 → 2-3个话头 {interest, keywords, hook}
+        ★ 2026-08-30: 无论成败都更新 last_analyze (冷却) — 解析失败不再无限重试"""
         import engine
         import prompt as prompt_mod
         pool = self._data["signals"][-40:]
@@ -116,13 +124,13 @@ class TopicSignals:
         raw = engine.generate(prompt_mod.topic_analyze_system(), pool_txt,
                               max_tokens=400, temperature=0.4)
         topics = prompt_mod.parse_topics(raw)
+        now = time.time()
+        self._data["last_analyze"] = now          # 无论成败都记 (冷却)
         if topics:
-            now = time.time()
             self._data["materials"] = [{"interest": t.get("interest", "")[:20],
                                         "keywords": t.get("keywords", "")[:60],
                                         "hook": t.get("hook", "")[:60],
                                         "ts": now} for t in topics[:TOPICS_MAX]]
-            self._data["last_analyze"] = now
             self.save()
         return len(topics)
 

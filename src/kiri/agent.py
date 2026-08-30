@@ -531,7 +531,10 @@ class AgentLoop:
                 #   text空/截断(没收尾标点, 无论长短) → 流式续写补全
                 #   ★ 长text(>300)也可能是截断的JSON (决策max_tokens装不下) → 必须检查收尾
                 text_clean = text.rstrip()
-                looks_done = text_clean.endswith(("。", "！", "？", "……", "”", '"', "～"))
+                # ★ 2026-08-30: 原只认中文句末标点, 以 "."/")"/emoji 结尾的完整回复
+                #   被误判截断 → 丢弃重生成 (语义漂移 + 双倍 token)。补全半角/引号。
+                looks_done = text_clean.endswith(("。", "！", "？", "……", "”", '"', "～", "~",
+                                                  ".", "!", "?", ")", "]", "」", "』", "…"))
                 if not text_clean or not looks_done:
                     # 用完整上下文流式+续写生成最终回复 (突破max_tokens, 一次说完)
                     all_info = "\n".join(summary_lines) + "\n" + "\n".join(
