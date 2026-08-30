@@ -393,6 +393,19 @@ class Api:
         return self._safe(do)
 
 
+# ---- 夜间自主循环 (模块级单实例, 跨 tick 持久) ----
+# ★ 2026-08-30 修复: 原实现把 NightLoop 建在 daemon_loop 的每次 tick 内,
+#   每次新建实例导致 stage_count/last_stage/history 全部归零 —
+#   30分钟阶段间隔(STAGE_INTERVAL)与每晚上限(MAX_STAGES_PER_NIGHT=10)全部失效,
+#   睡眠期每~25秒就完整跑一次 consolidate, 整晚跑了1063次 (日志全是"第1个")。
+#   改为模块级只创建一次: 实例状态跨 tick 保留, 间隔与上限才真正生效。
+try:
+    import night_loop as _night_loop_mod
+    _night_loop = _night_loop_mod.NightLoop(kiri)
+except Exception:
+    _night_loop = None
+
+
 # ---- 后台常驻线程 (tick/巩固/联想/主动) ----
 def daemon_loop():
     last = time.time()
@@ -419,12 +432,11 @@ def daemon_loop():
                 kiri.proactive()
             except Exception as exc:
                 kiri._log_event("error", where="daemon", error=str(exc))
-            # ★ 夜间自主循环: 睡前选阶段(训练OSU/整理记忆), 做完再选下一个
+            # ★ 夜间自主循环: 睡前整理记忆, 做完再选下一个 (单实例,
+            #   30分钟阶段间隔 + 每晚10次上限 由 NightLoop 内部状态保证)
             try:
-                import night_loop
-                nl = night_loop.NightLoop(kiri)
-                if nl.should_run():
-                    nl.run_stage()
+                if _night_loop is not None and _night_loop.should_run():
+                    _night_loop.run_stage()
             except Exception:
                 pass
             # ★ 每日日志总结: 睡眠期第一次检查时生成当天回顾 (文件存在防重复)
