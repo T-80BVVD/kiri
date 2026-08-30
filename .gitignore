@@ -31,6 +31,9 @@ src/kiri/emotion_events.jsonl
 src/kiri/data_log.jsonl
 src/kiri/app_run.log
 src/kiri/api_bridge.log
+# ★ 2026-08-30 持久化修复新增的运行时数据 (防复读语料/用户情绪画像, 含隐私, 不入库)
+src/kiri/anti_repeat_corpus.json
+src/kiri/user_mood.json
 
 # ---- 真实对话 / 内心流 / 记忆 ----
 src/kiri/kiri_mind.jsonl
