@@ -992,8 +992,12 @@ class Kiri:
         return total_facts > 0
 
     def _consolidate_user(self, user):
-        """巩固单个用户的记忆"""
-        events = self.memory.recent_events(hours=24, user=user)
+        """巩固单个用户的记忆
+        ★ 2026-08-31: 增量回放 — 只提炼"上次巩固以来"的新对话 (原固定24h窗口,
+          白天多次巩固会重复提炼旧内容, 浪费 token 且可能重复固化)"""
+        # 水位线: 上次巩固时间; 首次用 24h 窗口兜底
+        since_ts = self.state.last_consolidate or (time.time() - 24 * 3600)
+        events = self.memory.recent_events(since_ts=since_ts, user=user)
         # 去掉主动发言/系统生成记忆, 只保留 用户↔Kiri 真实对话
         # ★ 2026-08-30 修复: 原来只过滤"你主动联系了" — [联想]/[外部]/[探索]/[回顾]
         #   等 system 记忆也被当对话喂给 LLM 提炼"事实" → 从联想内容固化假事实。

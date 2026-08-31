@@ -555,8 +555,10 @@ class Memory:
                 pass
 
     # ---- 睡眠期回放: 取最近N小时的事件 (供记忆巩固用) ----
-    def recent_events(self, hours=24, max_n=80, user=None):
-        """按时间取最近 hours 小时的记忆 (回放原材料); 按用户
+    def recent_events(self, hours=24, max_n=80, user=None, since_ts=None):
+        """按时间取最近 hours 小时(或 since_ts 之后)的记忆 (回放原材料); 按用户
+        ★ 2026-08-31: 新增 since_ts — 增量回放: 只取"上次巩固以来"的新事件,
+          支持白天多次增量巩固 (借鉴 Operit 持续记忆, 防重复提炼旧内容)
         ★ chromadb get 不保证时间序 → 取全量后 Python 排序取最近"""
         try:
             col = self.get_user_collection(user)
@@ -570,12 +572,16 @@ class Memory:
             if meta.get("corrected"):
                 continue   # ★ 已纠正的记忆不进入回放 (NEKO corrections)
             ts = float(meta.get("timestamp", 0) or 0)
-            if now - ts <= hours * 3600:
-                out.append({"text": doc, "timestamp": ts, "session": meta.get("session"),
-                            "speaker": meta.get("speaker", "user"),
-                            "uncertain": bool(meta.get("uncertain", False)),
-                            "source": meta.get("source", "user_observation"),
-                            "related": meta.get("related", "")})
+            if since_ts is not None:
+                if ts < since_ts:
+                    continue
+            elif now - ts > hours * 3600:
+                continue
+            out.append({"text": doc, "timestamp": ts, "session": meta.get("session"),
+                        "speaker": meta.get("speaker", "user"),
+                        "uncertain": bool(meta.get("uncertain", False)),
+                        "source": meta.get("source", "user_observation"),
+                        "related": meta.get("related", "")})
         out.sort(key=lambda x: x["timestamp"])
         return out[-max_n:]
 

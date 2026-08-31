@@ -71,8 +71,11 @@ MAX_MEMORIES = 200
 # ---- 睡眠期 & 记忆巩固 ----
 SLEEP_START_HOUR = 23                # 睡眠期开始(小时)
 SLEEP_END_HOUR = 7                   # 睡眠期结束(小时)
-CONSOLIDATE_ONCE_PER_HOURS = 18      # 每多少小时最多巩固一次(≈每天一次)
-CONSOLIDATE_MIN_EVENTS = 3           # 最少对话事件才巩固(太少不值得)
+# ★ 2026-08-31 借鉴 Operit MemoryAutoSaveScheduler: 记忆巩固从"仅夜间一次性"改为
+#   "按间隔持续增量提炼" — 白天聊多了也巩固(记得牢), 只提炼上次巩固以来的新对话
+#   (防重复烧 token)。夜间每日总结仍由 night_loop 负责。
+CONSOLIDATE_ONCE_PER_HOURS = 6       # 巩固间隔(小时): 白天每 ~6h 可补一次巩固
+CONSOLIDATE_MIN_EVENTS = 3           # 最少新对话事件才巩固(太少不值得, 自然攒够再提)
 
 # ---- 夜间自主循环 (night_loop.py) ----
 # ★ 2026-08-30 统一配置: 原散落在 night_loop.py 顶部

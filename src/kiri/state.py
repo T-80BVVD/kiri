@@ -130,9 +130,9 @@ class State:
         return 2 <= h < 7
 
     def should_consolidate(self):
-        """睡眠期 + 距上次巩固够久 → 触发记忆巩固"""
-        if not self.is_sleeping():
-            return False
+        """距上次巩固够久 → 触发记忆巩固
+        ★ 2026-08-31 借鉴 Operit MemoryAutoSaveScheduler: 不再只夜间巩固 —
+          白天聊多了也按间隔持续增量提炼 (记得牢); 夜间每日总结仍走 night_loop"""
         if self.last_consolidate > 0 and time.time() - self.last_consolidate < config.CONSOLIDATE_ONCE_PER_HOURS * 3600:
             return False
         return True
