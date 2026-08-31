@@ -82,7 +82,8 @@ class ReverieEngine:
         if dlg:
             parts = []
             for m in dlg[-30:]:
-                who = user if m["role"] == "user" else "你"
+                # ★ 2026-08-31 人称修复: Kiri 自己的话标"我:" 而非"你:" (防模型当用户话)
+                who = user if m["role"] == "user" else "我"
                 parts.append(f"{who}: {m['text'][:50]}")
             recent = "最近对话: " + " | ".join(parts[-20:])
         return (f"{t}。你的心情{mood_txt}。{user}已沉默约{silence}分钟。"

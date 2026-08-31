@@ -101,13 +101,15 @@ def state_block(state_desc):
 
 def dialog_block(dialog, user=None):
     """最近对话轮次 (让Kiri记住'刚才说了什么', 对话连贯的关键)
-    ★ 2026-08-30: 新增 user 参数 — 原硬编码"雾弥", 对非雾弥用户名字标错"""
+    ★ 2026-08-31: 新增 user 参数 — 原硬编码"雾弥", 对非雾弥用户名字标错
+    ★ 2026-08-31 人称修复: Kiri 自己的话标"我:" 而非"你:" — 原"你:"会被模型误当成
+      用户的话引用/复述 (如"等1000年？"重复事故), 第一人称标签无歧义"""
     if not dialog:
         return ""
     who_name = user or "雾弥"
     lines = []
     for m in dialog[-30:]:
-        who = who_name if m["role"] == "user" else "你"
+        who = who_name if m["role"] == "user" else "我"
         lines.append(f"{who}: {m['text']}")
     return "\n[最近的对话]\n" + "\n".join(lines[-28:])
 
@@ -327,7 +329,8 @@ def respond_user(dialog, user_text, user=None, group_context=None):
         head = "群里最近的消息:\n" + group_context + "\n\n"
     lines = []
     for m in dialog[-6:]:
-        name = who if m["role"] == "user" else "你"
+        # ★ 2026-08-31 人称修复: Kiri 自己的话标"我:" 而非"你:" (防模型把"你"当用户引用)
+        name = who if m["role"] == "user" else "我"
         # ★ 历史里她自己过去的动作描写剥掉, 避免模仿 (存储不动, 只影响展示)
         text = _strip_action(m["text"]) if m["role"] == "kiri" else m["text"]
         lines.append(f"{name}: {text}")

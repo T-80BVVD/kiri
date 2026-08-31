@@ -338,7 +338,9 @@ class Kiri:
         recent = [m for m in dlg[-6:] if m.get("text")]
         lines = []
         for m in recent:
-            role = "你" if m["role"] == "kiri" else who
+            # ★ 2026-08-31 人称修复: Kiri 自己的话标"我:" 而非"你:"
+            #   (原"你:"会被模型当成用户的话引用/复述 — "等1000年？"重复事故根因)
+            role = "我" if m["role"] == "kiri" else who
             lines.append(f"{role}: {m['text'][:60]}")
         ctx = "\n".join(lines)
         return (f"【刚才聊的】(背景, 不用复述)\n{ctx}\n\n"
