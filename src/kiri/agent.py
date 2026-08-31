@@ -35,13 +35,15 @@ class AgentLoop:
     MAX_TOOL_RESULT = 100000     # 工具结果完整回填, 不截断
     STALL_LIMIT = 5              # 连续N轮无新信息(同样动作) → 视为打转, 自动停
 
-    def __init__(self, system_prompt, tools, execute_fn, memory=None, last_speak=""):
+    def __init__(self, system_prompt, tools, execute_fn, memory=None, last_speak="", supervisor=None):
         """
         system_prompt: agent 系统提示 (人格+工具说明)
         tools: [{name, description, args_schema}] 工具清单 (给LLM看的)
         execute_fn: (tool_name, args_dict) -> str 实际执行
         memory: (可选) Kiri 记忆系统 — 决策时检索相关长期记忆作【长】层背景
         last_speak: (可选) 上一次发给用户的话 — 决策时提示"别复读上面那句"
+        supervisor: (可选) 外部监督器 — 每轮决策前调用, 返回附加提示字符串 (可空),
+                    用于检测轨迹停滞/重复循环并注入"换策略"提示 (AVO supervisor 机制, 2026-08-31)
         """
         self.system_prompt = system_prompt
         self.tools = tools
@@ -52,6 +54,8 @@ class AgentLoop:
         # ★ 2026-08-30: 由 kiri 传入最近一次回复 — 原来恒为 ""("别复读上面那句"从不注入,
         #   导致 agent 会 echo 自己在对话历史里说的上一句, 如把"等1000年？"重复发出)
         self._last_speak = last_speak or ""
+        # ★ 2026-08-31 (AVO 借鉴): 外部 supervisor — 监控轨迹/停滞, 每轮注入策略提示
+        self.supervisor = supervisor
 
     def _tools_text(self):
         """工具清单 → 给 LLM 的文本"""
@@ -405,8 +409,18 @@ class AgentLoop:
             if getattr(self, "_think_streak", 0) >= 3:
                 think_note = ("\n[注意] 你已经想了好几轮了, 别再想下去了。"
                               "★直接 <speak> 回应对方 (闲聊就轻松说一句), 或 <think>{action:call...}</think> 调工具。")
+            # ★ AVO supervisor (2026-08-31 借鉴 NVIDIA AVO): 外部监督器监控轨迹,
+            #   检测停滞/重复 → 注入"换策略"提示 (diagnose_agent 提供)
+            sup_note = ""
+            if self.supervisor is not None:
+                try:
+                    sup_note = self.supervisor(context=context, stall_count=stall_count,
+                                               explore_count=explore_count,
+                                               done_actions=list(self.done_actions)) or ""
+                except Exception:
+                    sup_note = ""
             decision_p = self._decision_prompt(user_text, ctx_text, explore_count,
-                                               repeat_hint=repeat_note + same_tool_note + think_note)
+                                               repeat_hint=repeat_note + same_tool_note + think_note + sup_note)
             for _attempt in range(2):
                 decision, raw = self._stream_decision(sys_p, decision_p)
                 if decision:

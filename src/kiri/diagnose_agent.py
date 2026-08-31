@@ -108,6 +108,32 @@ class DiagnoseManager:
         return "\n".join(lines)
 
     # ---- 后台执行 ----
+    # ★ AVO supervisor (2026-08-31 借鉴 NVIDIA AVO 的 supervisor 机制):
+    #   后台任务运行中, 外部监督器监控轨迹 (steps/findings) — 检测停滞/重复/无进展,
+    #   在 agent 每轮决策前注入"换策略/收尾"提示, 防止"承诺做工具却半途而废/原地打转"。
+    def _make_supervisor(self, task_id):
+        def supervisor(context=None, stall_count=0, explore_count=0, done_actions=None):
+            t = self._tasks.get(task_id)
+            if not t:
+                return ""
+            steps = t.get("steps") or []
+            findings = t.get("findings") or []
+            # 1. 连续 3 步同一个工具 (不管参数) → 换方向
+            if len(steps) >= 3:
+                last3 = [s[0] for s in steps[-3:]]
+                if len(set(last3)) == 1:
+                    return ("\n[监督] 你已经连续用「" + str(last3[0]) + "」3 步了, 没有新进展。"
+                            "换个工具/换个角度, 或者总结现状直接收尾 — 别在原地重复。")
+            # 2. 探索 ≥6 步但基本没有新发现 → 收尾提示
+            if len(steps) >= 6 and len(findings) <= 1:
+                return ("\n[监督] 你已经探索了 " + str(len(steps)) + " 步, 但基本没有新发现。"
+                        "别继续翻同一个方向了 — 把已看到的整理成结论, 告诉对方你查到了什么/卡在哪。")
+            # 3. 轮数很多 → 强制收敛 (避免无限探索烧 token)
+            if explore_count >= 15:
+                return ("\n[监督] 轮数很多了。把已发现的整理成结论收尾, 别继续探索。")
+            return ""
+        return supervisor
+
     def start(self, kiri, issue, max_rounds=60, mode="diag"):
         """启动后台任务 (不阻塞). kiri: Kiri实例, issue: 任务描述
         mode: diag=排查自己工具的问题(查出就修) / explore=自主探索(她说'我去扒拉扒拉'这类)
@@ -174,7 +200,8 @@ class DiagnoseManager:
                         "查出问题就修掉, 修完用 run_code 验证再告诉雾弥结果)。")
                 loop = agent.AgentLoop(
                     agent.build_system_prompt(sys_p, _grouped_tools(diag_tools)),
-                    diag_tools, traced_execute)
+                    diag_tools, traced_execute,
+                    supervisor=self._make_supervisor(task_id))   # ★ AVO supervisor (2026-08-31)
                 self._update(task_id, current="开始排查..." if mode != "explore" else "开始逛了...")
                 result = loop.run(issue, max_rounds=max_rounds)
                 self._update(task_id, status="done", result=result[:500],
