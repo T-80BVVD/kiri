@@ -161,8 +161,10 @@ class DiagnoseManager:
                         import goals
                         _gl = goals.list_goals()
                         if "你的目标:" in str(_gl):
-                            sys_p += "\n\n★ 你心里惦记着的事(你的目标):\n" + str(_gl) + \
-                                     "\n做这些的时候, 记得它们是你要完成的, 做完一件再下一件。"
+                            sys_p += ("\n\n★ 你心里惦记着的事(你的目标):\n" + str(_gl) +
+                                      "\n做这些的时候, 记得它们是你要完成的, 做完一件再下一件。"
+                                      "\n★ 做完/有进展后, 用 goal_update 更新目标进度, 真做完了用 goal_done 标记完成"
+                                      " — 别只做不说, 也别只说不做 (2026-08-31: 目标工具已在你的工具清单里)。")
                     except Exception:
                         pass
                 else:

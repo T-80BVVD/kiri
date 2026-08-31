@@ -725,6 +725,7 @@ def create_tool(name: str, code: str = "", mode: str = "write") -> str:
 def run_code(path: str, args: str = "") -> str:
     """运行你写的代码 (测试, 看能不能跑)。path=my_creations里的文件, args=可选参数。
     统一在独立子进程沙箱运行 (20秒超时), 不会污染 Kiri 主进程;
+    @mcp.tool 工具文件会加载并调用第一个 def 函数, 输出函数结果 — 写完立即验证;
     输出会显示运行结果或报错 — 写错了能看到哪里崩, 自己修。"""
     try:
         p = _safe_creation_path(path)
@@ -734,18 +735,51 @@ def run_code(path: str, args: str = "") -> str:
             return f"({path} 不存在)"
         with open(p, "r", encoding="utf-8", errors="replace") as f:
             src = f.read()
-        # ★ 2026-08-30 安全加固: 原 @mcp.tool 文件走"进程内 exec" (任意代码执行链),
-        #   现在统一 subprocess 沙箱运行 (独立进程 + 20s 超时 + 加载失败可反馈)。
-        #   副作用: 不再"加载进当前会话" — 工具函数效果需重启后正式生效 (见 create_tool 说明)。
         import subprocess
         import sys as _sys
+        # ★ 2026-08-30: 恢复"写完立即验证"闭环 — @mcp.tool 文件在独立子进程里
+        #   加载并调用第一个 def 函数 (原"进程内 exec"是 RCE 链, 改子进程沙箱:
+        #   独立进程 + 20s 超时, 恶意代码在子进程自爆不影响 Kiri 主进程;
+        #   create_tool 写入时已过 AST 静态检查)。
+        if "@mcp.tool" in src:
+            runner = (
+                "import importlib.util, ast, sys, os\n"
+                "p = sys.argv[1]; args = sys.argv[2:]\n"
+                "sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(p))))\n"
+                "src = open(p, encoding='utf-8', errors='replace').read()\n"
+                "if 'from kiri_mcp_server import mcp' not in src and 'import mcp' not in src:\n"
+                "    src = 'from kiri_mcp_server import mcp\\n' + src\n"
+                "spec = importlib.util.spec_from_file_location('t', p)\n"
+                "mod = importlib.util.module_from_spec(spec)\n"
+                "exec(compile(src, p, 'exec'), mod.__dict__)\n"
+                "tree = ast.parse(src)\n"
+                "fns = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]\n"
+                "fn = getattr(mod, fns[0], None) if fns else None\n"
+                "if callable(fn):\n"
+                "    try:\n"
+                "        r = fn(*args)\n"
+                "        print('函数结果:', r if r is not None else '(无返回值)')\n"
+                "    except Exception as e:\n"
+                "        print('调用报错:', type(e).__name__, e)\n"
+                "else:\n"
+                "    print('(文件加载成功, 但没有可调用的 def 函数)')\n"
+            )
+            r = subprocess.run([_sys.executable, "-c", runner, p] + str(args).split(),
+                               capture_output=True, text=True, timeout=20,
+                               cwd=os.path.dirname(p))
+            out = (r.stdout or "")[:1500]
+            err = (r.stderr or "")[:1500]
+            if r.returncode == 0:
+                return f"(运行成功)\n{out}" + (f"\n{err}" if err.strip() else "")
+            return f"(运行出错, 退出码{r.returncode})\n{out}\n{err}"
+        # 普通脚本: 沙箱 subprocess 运行
         r = subprocess.run([_sys.executable, p] + str(args).split(),
                            capture_output=True, text=True, timeout=20,
                            cwd=os.path.dirname(p))
         out = (r.stdout or "")[:1500]
         err = (r.stderr or "")[:1500]
         if r.returncode == 0:
-            return f"(运行成功 — 代码加载/执行无报错)\n{out}"
+            return f"(运行成功)\n{out}"
         return f"(运行出错, 退出码{r.returncode})\n{out}\n{err}"
     except subprocess.TimeoutExpired:
         return "(运行超时(20秒) — 可能死循环了, 检查你的代码)"

@@ -344,7 +344,10 @@ def build_all_tools(kiri):
                           "ask_ai", "check_system", "read_self", "self_discover",
                           "memory_recall", "memory_status", "state_status", "emotion_state",
                           # ★ 创作工具 (2026-08-21): 诊断要能修复 — 查到了就能动手改
-                          "create_tool", "run_code", "list_creations"}
+                          "create_tool", "run_code", "list_creations",
+                          # ★ 2026-08-31: 目标工具 — 后台任务(探索/推进目标)要能更新/完成目标,
+                          #   否则她做完事也更新不了 goals (progress 永远卡"刚开始")
+                          "goal_list", "goal_update", "goal_done", "goal_drop"}
             return [t for t in all_tools if t["name"] in diag_names]
         # chat: 全部 (默认)
         return all_tools
